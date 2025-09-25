@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>FanZin RPG — A4</title>
+<style>
+  :root{
+    --page-w: 210mm; --page-h: 297mm;
+    --m-top: 15mm; --m-out: 17mm; --m-bot: 20mm; --m-in: 17mm;
+    --col-gap: 6mm;
+    --font: system-ui, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "DejaVu Sans", sans-serif;
+  }
+
+  /* Ekran – biała „kartka” A4 do podglądu */
+  @media screen {
+    body{ background:#0b0b0c; margin:0; padding:2rem; font-family:var(--font); }
+    .page{
+      width: var(--page-w); min-height: var(--page-h);
+      margin: 0 auto 2rem; background:#fff; color:#111;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35); padding: 0;
+    }
+  }
+
+  /* Druk – prawdziwe A4 */
+  @media print {
+    @page {
+      size: A4;
+      margin: var(--m-top) var(--m-out) var(--m-bot) var(--m-in);
+    }
+    body{ margin:0; }
+    .page{ box-shadow:none; }
+  }
+
+  /* Treść strony */
+  .page-inner{ padding: 0; }
+  header.page-head{ padding: 10mm 14mm 6mm 14mm; border-bottom: 0.3pt solid #ddd; }
+  header.page-head h1{ margin:0; font-size: 20pt; line-height:1.2; }
+  header.page-head .kicker{ text-transform: uppercase; letter-spacing:.06em; color:#666; font-size:9pt; }
+
+  .columns{
+    padding: 6mm 14mm 10mm 14mm;
+    column-count: 2; column-gap: var(--col-gap);
+    hyphens: auto; /* w PL ważne */
+  }
+  .columns p{ margin: 0 0 3.5mm 0; font-size: 10.5pt; line-height: 1.4; }
+  .pull{ break-inside: avoid; border-left: 2pt solid #06b6d4; padding-left: 3mm; color:#333; font-style: italic; }
+
+  /* (Opcjonalnie, z Paged.js/Vivliostyle):
+  header.page-head{ position: running(page-header); }
+  footer.page-foot{ position: running(page-footer); }
+  @page {
+    @top-center { content: element(page-header); }
+    @bottom-right { content: "Strona " counter(page) " / " counter(pages); }
+  } */
+
+  footer.page-foot{
+    padding: 4mm 14mm 6mm 14mm; border-top: 0.3pt solid #ddd;
+    font-size: 9pt; color:#666; display:flex; justify-content:space-between;
+  }
+</style>
+</head>
+<body>
+  <section class="page">
+    <div class="page-inner">
+      <header class="page-head">
+        <div class="kicker">Artykuł flagowy</div>
+        <h1>Czwarta Edycja bez strachu</h1>
+      </header>
+
+      <div class="columns" lang="pl">
+        <p>Kiedy hobby rośnie, rosną też standardy. Nowa edycja nie musi być cięższa — powinna być klarowna i przyjazna przy stole.</p>
+        <p class="pull">„Zasady są jak interfejs. Jeśli gracz musi je debugować, GUI wymaga patcha.”</p>
+        <p>…(treść) …(treść) …(treść)…</p>
+      </div>
+
+      <footer class="page-foot">
+        <span>FanZin RPG · Numer 0</span>
+        <span><!-- tu wejdzie numer strony z silnikiem Paged --></span>
+      </footer>
+    </div>
+  </section>
+</body>
+</html>

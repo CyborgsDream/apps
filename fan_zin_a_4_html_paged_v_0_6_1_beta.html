@@ -1,11 +1,13 @@
 <!--
- FanZin A4 — HTML Paged v0.5 (32 pages + UI + thumbnails + bleed/crop + Chapter 1 + PDF export)
- @version 0.5.0  | @date 2025‑09‑25 (Europe/Warsaw)
- @codename "Nawigator Pro — PDF"
+ FanZin A4 — HTML Paged v0.6.1 (LTS) — rollback to stable 0.6.0 + fixes
+ @version 0.6.1
+ @codename "Nawigator LTS"
  @changelog
-  - PDF Export: przycisk „Eksportuj PDF” (window.print) + przełączniki: „Spady + znaczniki” i „Ukryj linie pomocnicze”
-  - 32 stron A4 ze spadami 3 mm, miniatury, nawigacja, miks 1/2/3 kol.
-  - Stabilny układ bez Paged.js (brak migotania, brak błędu getBoundingClientRect)
+  - Rolled back to stable 0.6.0 code path (UI + thumbnails + 32 pages)
+  - Fixed: mirrored inner/outer margins (odd/even) and tighter side paddings
+  - Fixed: spanners in multicol (no overlay) via break-before/after: column
+  - Fixed: print is exactly 32 pages; overflow hidden; page-break-inside: avoid
+  - Thumbnails: robust dynamic scaling; rebuild on load/resize/afterprint
 -->
 <!doctype html>
 <html lang="pl">
@@ -13,7 +15,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta http-equiv="Content-Language" content="pl" />
-<title>FanZin RPG — A4 (HTML Paged v0.5)</title>
+<title>FanZin RPG — A4 (HTML Paged v0.6.1 LTS)</title>
 <style>
   /* ====== Page Setup (manual pagination) ====== */
   :root{
@@ -28,7 +30,7 @@
     --ink: #111; --ink-soft:#444; --rule:#ddd; --paper:#fff; --thumb-bg:#f8f8f8;
     --font-body: "Literata", "Source Serif 4", "Noto Serif", "PT Serif", ui-serif, Georgia, serif;
     --font-ui: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "DejaVu Sans", sans-serif;
-    --ui-h: 56px; --sidebar-w: 210px; /* szerszy sidebar pod miniatury */
+    --ui-h: 56px; --sidebar-w: 210px;
     --crop-l: 7mm; --crop-w: 0.25mm; /* crop marks length & width */
   }
 
@@ -37,8 +39,9 @@
     @page { size: var(--sheet-w) var(--sheet-h); margin: 0; }
     #ui, #sidebar { display:none !important; }
     #pages{ margin:0; }
-    .sheet{ page-break-after: always; box-shadow:none; border:none; }
+    .sheet{ height: var(--sheet-h) !important; width: var(--sheet-w) !important; page-break-after: always; page-break-inside: avoid; box-shadow:none; border:none; overflow: hidden; }
     .sheet:last-child{ page-break-after: auto; }
+    .trim{ height: var(--page-h) !important; width: var(--page-w) !important; }
     /* Druk: domyślnie ukryj linie pomocnicze */
     .trim::before{ display:none; }
     /* Opcja: bez znaczników cięcia */
@@ -52,7 +55,7 @@
   h1.title{ font-size: 22pt; }
   h2{ font-size: 13pt; }
   h3{ font-size: 11pt; }
-  p{ margin: 0 0 3.2mm 0; hyphens: auto; }
+  p{ margin: 0 0 3.2mm 0; hyphens: auto; orphans:3; widows:3; }
   .kicker{ text-transform: uppercase; letter-spacing: .08em; color:#666; font-size:9pt; }
   .muted{ color: var(--ink-soft); }
   .rule{ border-top: .3pt solid var(--rule); }
@@ -74,8 +77,9 @@
   #thumbs .thumb{ padding:8px; margin-bottom:10px; background:#fff; border:1px solid #e6e6e6; border-radius:8px; cursor:pointer; }
   #thumbs .thumb.active{ outline:2px solid var(--accent); }
   .mini-wrap{ width: 150px; height: 215px; overflow: hidden; position: relative; margin: 0 auto 6px; }
-  .mini-wrap .sheet{ transform: scale(.22); transform-origin: top left; box-shadow: none; border:0.5pt solid #e6e6e6; }
+  .mini-wrap .sheet{ box-shadow: none; border:0.5pt solid #e6e6e6; }
   .mini-wrap .trim::before{ display:none; } /* bez guides w miniaturze */
+  .mini-wrap .crop{ display:none; }
   .mini-meta{ text-align:center; font: 12px var(--font-ui); color:#333; }
 
   /* ====== Pages Container ====== */
@@ -83,7 +87,10 @@
 
   /* ====== Sheet (bleed) + Trim + Guides + Crop marks ====== */
   .sheet{ position: relative; width: var(--sheet-w); height: var(--sheet-h); background: var(--paper); color: var(--ink);
-          box-shadow: 0 6px 20px rgba(0,0,0,.12); margin: 16px auto; border: 0.5pt solid #e6e6e6; scroll-margin-top: calc(var(--ui-h) + 12px); }
+          box-shadow: 0 6px 20px rgba(0,0,0,.12); margin: 16px auto; border: 0.5pt solid #e6e6e6; scroll-margin-top: calc(var(--ui-h) + 12px); overflow: hidden; }
+  /* mirrored margin variables per page */
+  .sheet{ --inPage: var(--m-in); --outPage: var(--m-out); }
+  .sheet.even{ --inPage: var(--m-out); --outPage: var(--m-in); }
 
   /* crop marks (manual) */
   .crop{ position:absolute; width:0; height:0; }
@@ -98,28 +105,28 @@
   .crop.tr::after{ right: 0; top: calc(var(--m-top) - var(--crop-w)); }
   .crop.bl::after{ left: 0; bottom: calc(var(--m-bot) - var(--crop-w)); transform: translateX(calc(-1 * var(--crop-l))); }
   .crop.br::after{ right: 0; bottom: calc(var(--m-bot) - var(--crop-w)); }
-  /* pionowe */
+  /* pionowe (mirrored inner/outer) */
   .crop.tl::before, .crop.tr::before, .crop.bl::before, .crop.br::before{ width: var(--crop-w); height: var(--crop-l); }
-  .crop.tl::before{ top: 0; left: calc(var(--m-in) - var(--crop-w)); transform: translateY(calc(-1 * var(--crop-l))); }
-  .crop.tr::before{ top: 0; right: calc(var(--m-out) - var(--crop-w)); transform: translateY(calc(-1 * var(--crop-l))); }
-  .crop.bl::before{ bottom: 0; left: calc(var(--m-in) - var(--crop-w)); }
-  .crop.br::before{ bottom: 0; right: calc(var(--m-out) - var(--crop-w)); }
+  .crop.tl::before{ top: 0; left: calc(var(--inPage) - var(--crop-w)); transform: translateY(calc(-1 * var(--crop-l))); }
+  .crop.tr::before{ top: 0; right: calc(var(--outPage) - var(--crop-w)); transform: translateY(calc(-1 * var(--crop-l))); }
+  .crop.bl::before{ bottom: 0; left: calc(var(--inPage) - var(--crop-w)); }
+  .crop.br::before{ bottom: 0; right: calc(var(--outPage) - var(--crop-w)); }
 
   /* Trim box and margin guides */
   .trim{ position: absolute; left: var(--bleed); top: var(--bleed); width: var(--page-w); height: var(--page-h); background: transparent; }
-  .trim::before{ content:""; position:absolute; left: var(--m-in); right: var(--m-out); top: var(--m-top); bottom: var(--m-bot);
+  .trim::before{ content:""; position:absolute; left: var(--inPage); right: var(--outPage); top: var(--m-top); bottom: var(--m-bot);
                  border:0.4pt dashed #bdbdbd; pointer-events:none; }
 
   /* ====== Content Blocks (inside .trim) ====== */
-  .head{ padding: 10mm 14mm 6mm 14mm; border-bottom: .3pt solid var(--rule); }
-  .cols{ padding: 6mm 14mm 0 14mm; hyphens: auto; }
+  .head{ padding: 10mm 12mm 6mm 12mm; border-bottom: .3pt solid var(--rule); }
+  .cols{ padding: 6mm 12mm 0 12mm; hyphens: auto; column-fill: auto; }
   .cols-1{ column-count: 1; }
   .cols-2{ column-count: 2; column-gap: var(--col-gap); }
   .cols-3{ column-count: 3; column-gap: var(--col-gap); }
   .cols p, .cols li, .cols figure, .cols h2, .cols h3{ break-inside: avoid-column; }
-  .span-all{ column-span: all; }
+  .span-all{ column-span: all; break-before: column; break-after: column; }
   .split{ padding-bottom: 6mm; }
-  .foot{ padding: 4mm 14mm 6mm 14mm; border-top: .3pt solid var(--rule); font-size: 9pt; color:#666; display:flex; justify-content:space-between; }
+  .foot{ padding: 4mm 12mm 6mm 12mm; border-top: .3pt solid var(--rule); font-size: 9pt; color:#666; display:flex; justify-content:space-between; }
 
   /* Figures */
   figure{ margin: 0 0 4mm 0; }
@@ -129,6 +136,10 @@
 
   /* Utilities */
   .mb2{ margin-bottom: 2mm; } .mb4{ margin-bottom: 4mm; } .mb6{ margin-bottom: 6mm; }
+
+  /* Toggles */
+  body.hide-guides .trim::before{ display:none !important; }
+  body.no-crop .crop{ display:none !important; }
 </style>
 </head>
 <body>
@@ -145,6 +156,7 @@
     <div class="spacer"></div>
     <label><input type="checkbox" id="chkBleed" checked /> Spady + znaczniki</label>
     <label><input type="checkbox" id="chkGuides" checked /> Ukryj linie pomocnicze</label>
+    <div class="stat muted" id="ver">FanZin A4 — v0.6.1 LTS</div>
     <button class="btn" id="pdfBtn">📄 Eksportuj PDF</button>
   </div>
 
@@ -157,6 +169,7 @@
 <script>
 (function(){
   const TOTAL = 32;
+  const VERSION = '0.6.1';
   const pagesEl = document.getElementById('pages');
   const curEl = document.getElementById('cur');
   const totEl = document.getElementById('tot');
@@ -172,6 +185,7 @@
   const chkGuides = document.getElementById('chkGuides');
 
   totEl.textContent = String(TOTAL);
+  document.title = 'FanZin RPG — A4 (HTML Paged v' + VERSION + ' LTS)';
 
   /* Patterns of column blocks per page (flexible mixes) */
   const patterns = [
@@ -208,7 +222,7 @@
 
   function makeColsBlock(colsClass){
     const b = document.createElement('div'); b.className = 'cols ' + ('cols-' + colsClass) + ' split';
-    const parts = 6 + Math.floor(Math.random()*10);
+    const parts = 3 + Math.floor(Math.random()*5);
     for(let i=0;i<parts;i++){
       if(i>0 && i%3===0){ b.appendChild(fig()); }
       b.appendChild(para());
@@ -217,18 +231,19 @@
     return b;
   }
 
-  function makeTrim(){
+  function makeTrim(sheet){
     const t = document.createElement('div'); t.className = 'trim';
     /* crop marks */
     for(const c of ['tl','tr','bl','br']){
       const m = document.createElement('div'); m.className = 'crop '+c; t.appendChild(m);
     }
+    sheet.appendChild(t);
     return t;
   }
 
-  function pageSkeleton(titleText){
-    const sheet = document.createElement('section'); sheet.className = 'sheet';
-    const trim = makeTrim(); sheet.appendChild(trim);
+  function pageSkeleton(titleText, pageIndex){
+    const sheet = document.createElement('section'); sheet.className = 'sheet ' + (pageIndex%2 ? 'even' : 'odd');
+    const trim = makeTrim(sheet);
 
     const head = document.createElement('header'); head.className = 'head';
     head.innerHTML = '<div class="kicker">FanZin RPG · Numer 0</div>'+
@@ -238,7 +253,7 @@
   }
 
   function chapterOnePage(pageIndex){
-    const {sheet, trim} = pageSkeleton('ROZDZIAŁ PIERWSZY — TWORZENIE POSTACI');
+    const {sheet, trim} = pageSkeleton('ROZDZIAŁ PIERWSZY — TWORZENIE POSTACI', pageIndex);
     /* Two columns intro */
     const c2 = document.createElement('div'); c2.className = 'cols cols-2 split';
     c2.appendChild(para('Gdy grasz fabularnie, wcielasz się w inną osobę — postać, którą sam tworzysz. GURPS pozwala dokładnie zdecydować, jakim bohaterem chcesz zostać. Górnik asteroid? Czarodziej? Zawodowy podróżnik w czasie? Możesz wzorować się na fikcyjnym herosie lub heroinie, albo zbudować swoje nowe „ja” od podstaw. Kiedy już wiesz, jaką rolę chcesz odegrać, czas tchnąć życie w tę postać!'));
@@ -266,17 +281,17 @@
     trim.appendChild(c3);
 
     const foot = document.createElement('footer'); foot.className = 'foot rule';
-    foot.innerHTML = '<span>Rozdział 1 — Tworzenie postaci</span><span>Strona '+(pageIndex+1)+' / '+TOTAL+'</span>';
+    foot.innerHTML = '<span>Rozdział 1 — Tworzenie postaci</span><span>Strona '+(pageIndex+1)+' / '+TOTAL+' — v'+VERSION+'</span>';
     trim.appendChild(foot);
     return sheet;
   }
 
   function genericPage(i){
-    const {sheet, trim} = pageSkeleton('Artykuł demonstracyjny · Strona '+(i+1));
+    const {sheet, trim} = pageSkeleton('Artykuł demonstracyjny · Strona '+(i+1), i);
     const pat = patterns[i % patterns.length];
     for(const c of pat){ trim.appendChild(makeColsBlock(c)); }
     const foot = document.createElement('footer'); foot.className = 'foot rule';
-    foot.innerHTML = '<span>FanZin — Demo</span><span>Strona '+(i+1)+' / '+TOTAL+'</span>';
+    foot.innerHTML = '<span>FanZin — Demo</span><span>Strona '+(i+1)+' / '+TOTAL+' — v'+VERSION+'</span>';
     trim.appendChild(foot);
     return sheet;
   }
@@ -289,21 +304,37 @@
   }
 
   const pages = Array.from(document.querySelectorAll('.sheet'));
-
-  // Build thumbnails (clone pages, scale down)
-  pages.forEach((p, idx)=>{
-    const wrap = document.createElement('div'); wrap.className = 'thumb'; wrap.dataset.index = String(idx);
-    const mini = document.createElement('div'); mini.className = 'mini-wrap';
-    const clone = p.cloneNode(true);
-    mini.appendChild(clone);
-    wrap.appendChild(mini);
-    const meta = document.createElement('div'); meta.className = 'mini-meta'; meta.textContent = 'Strona ' + (idx+1);
-    wrap.appendChild(meta);
-    wrap.addEventListener('click', ()=> snapTo(idx));
-    thumbsEl.appendChild(wrap);
-  });
-
+  // current page index must be ready before any call
   let cur = 0;
+
+  // Build thumbnails (clone & scale to fit)
+  function buildThumbnails(){
+    thumbsEl.innerHTML = '';
+    // measure real page size once
+    const r = pages[0].getBoundingClientRect();
+    const baseW = r.width || pages[0].offsetWidth || 1000;
+    const baseH = r.height || pages[0].offsetHeight || 1400;
+    pages.forEach((p, idx)=>{
+      const wrap = document.createElement('div'); wrap.className = 'thumb'; wrap.dataset.index = String(idx);
+      const mini = document.createElement('div'); mini.className = 'mini-wrap';
+      const clone = p.cloneNode(true);
+      // prevent mini from catching events
+      clone.style.pointerEvents = 'none';
+      mini.appendChild(clone);
+      wrap.appendChild(mini);
+      const meta = document.createElement('div'); meta.className = 'mini-meta'; meta.textContent = 'Strona ' + (idx+1);
+      wrap.appendChild(meta);
+      wrap.addEventListener('click', ()=> snapTo(idx));
+      thumbsEl.appendChild(wrap);
+      // scale clone to fit width
+      const availW = mini.clientWidth; let scale = availW / baseW; if(!isFinite(scale) || scale<=0){ scale = 0.2; }
+      clone.style.transformOrigin = 'top left';
+      clone.style.transform = 'scale(' + scale.toFixed(4) + ')';
+      mini.style.height = (baseH * scale) + 'px';
+    });
+    setActiveThumb();
+  }
+
   function setActiveThumb(){
     document.querySelectorAll('.thumb.active').forEach(e=> e.classList.remove('active'));
     const t = thumbsEl.querySelector('.thumb[data-index="'+cur+'"]'); if(t) t.classList.add('active');
@@ -311,7 +342,7 @@
 
   function snapTo(idx){
     cur = Math.max(0, Math.min(TOTAL-1, idx));
-    pages[cur].scrollIntoView({behavior:'smooth', block:'start'});
+    pages[cur].scrollIntoView({behavior:'auto', block:'start'});
     curEl.textContent = String(cur+1);
     gotoEl.value = String(cur+1);
     prevBtn.disabled = (cur===0); firstBtn.disabled = (cur===0);
@@ -339,7 +370,7 @@
   // Track scroll position to update page number and active thumb
   const obs = new IntersectionObserver((entries)=>{
     let topMost = null; let topY = Infinity;
-    for(const e of entries){ if(e.isIntersecting){ const r = e.target.getBoundingClientRect(); if(r.top >= 0 && r.top < topY){ topY = r.top; topMost = e.target; } } }
+    for(const e of entries){ if(e.isIntersecting){ const rr = e.target.getBoundingClientRect(); if(rr.top >= 0 && rr.top < topY){ topY = rr.top; topMost = e.target; } } }
     if(topMost){
       const idx = pages.indexOf(topMost);
       if(idx>=0){ cur = idx; curEl.textContent = String(cur+1); gotoEl.value = String(cur+1); setActiveThumb();
@@ -351,20 +382,23 @@
   pages.forEach(p=> obs.observe(p));
 
   // PDF Export
+  // Apply initial toggles
+  document.body.classList.toggle('no-crop', !chkBleed.checked);
+  document.body.classList.toggle('hide-guides', chkGuides.checked);
+  chkGuides.addEventListener('change', ()=> document.body.classList.toggle('hide-guides', chkGuides.checked));
+  chkBleed.addEventListener('change', ()=> document.body.classList.toggle('no-crop', !chkBleed.checked));
+
   pdfBtn.addEventListener('click', ()=>{
-    // Ustaw klasy pomocnicze na czas druku
-    document.body.classList.toggle('no-crop', !chkBleed.checked);
-    document.body.classList.toggle('hide-guides', chkGuides.checked);
-    // Skroluj na początek, aby nic nie „utknęło” poza stroną
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    // Daj przeglądarce klatkę na przebudowę layoutu
-    setTimeout(()=> window.print(), 50);
+    document.body.classList.add('print-export');
+    thumbsEl.innerHTML = '';
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    setTimeout(()=> window.print(), 100);
   });
-  // Sprzątanie po druku (wspiera część przeglądarek)
-  window.addEventListener('afterprint', ()=>{
-    document.body.classList.remove('no-crop');
-    document.body.classList.remove('hide-guides');
-  });
+  window.addEventListener('afterprint', ()=>{ buildThumbnails(); document.body.classList.remove('print-export'); });
+
+  // Build thumbs after layout
+  window.addEventListener('load', buildThumbnails);
+  window.addEventListener('resize', buildThumbnails);
 
   // Start at page 1
   snapTo(0);

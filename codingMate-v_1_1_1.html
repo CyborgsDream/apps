@@ -1,0 +1,706 @@
+<!doctype html>
+<!--
+ VHDR — CodingAgent Companion — SINGLE FILE
+ Version: v1.1.1  |  Codename: ONE-COLUMN-FIX  |  Build: 2025-09-25  Europe/Warsaw
+ Purpose: Local HTML5 app to assemble a robust one-shot “super prompt”, parse AI repo fences, and apply changes — no APIs.
+ Changelog (latest first):
+ - v1.1.1: FIX — ensure prompt generation always fires (try/catch), auto-build on load, correct "\n" joins, visible error status.
+ - v1.1.0: One-column compact layout; advanced options; settings import/export; hardened parser; self-test.
+ - v1.0.0: Initial two-column builder with ingest/diff/write.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CodingAgent Companion v1.1.1 — One-Column (No API)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{
+      --bg:#0b0e12;--card:#131a22;--ink:#e9eef6;--mute:#a9b4c0;--line:#1f2a35;--inset:#0e141a;
+      --accent:#1e90ff;--ok:#83e377;--warn:#ffd166;--bad:#ff6b6b;--tag:#233040;
+      --radius:12px;--gap:10px;--pad:12px;--mono:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;
+      --maxw:880px;
+    }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    a{color:#9ad;text-decoration:none}
+    h1{font-size:18px;margin:0 0 6px}
+    h3{margin:0 0 8px}
+    .wrap{max-width:var(--maxw);margin:0 auto;padding:12px}
+    .stack{display:flex;flex-direction:column;gap:var(--gap)}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:var(--pad);box-shadow:0 0 0 1px var(--inset) inset}
+    label{display:block;margin:6px 0 4px;color:#c8d3df}
+    input[type=text],input[type=number],textarea,select{
+      width:100%;box-sizing:border-box;background:var(--inset);border:1px solid #253242;border-radius:10px;color:var(--ink);
+      padding:9px 10px;font:14px/1.4 inherit;outline:none
+    }
+    textarea{min-height:120px;resize:vertical}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .row > *{flex:1 1 160px}
+    .btn{background:var(--accent);border:0;border-radius:10px;padding:9px 12px;color:#fff;font-weight:600;cursor:pointer}
+    .btn.secondary{background:#2b3948}
+    .btn.ghost{background:transparent;border:1px solid #2b3948;color:#c8d3df}
+    .btn.small{padding:6px 8px;font-weight:600}
+    .small{font-size:12px;color:var(--mute)}
+    .mono{font-family:var(--mono)}
+    .pill{display:inline-block;border:1px solid #2b3948;border-radius:999px;padding:2px 8px;margin-right:6px}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+    .files{max-height:180px;overflow:auto;border:1px dashed #2b3948;border-radius:10px;padding:8px;background:var(--inset)}
+    .drop{border:2px dashed #425a74;border-radius:12px;padding:10px;text-align:center;color:var(--mute)}
+    .code{white-space:pre-wrap;background:var(--inset);border:1px solid #253242;border-radius:10px;padding:10px;max-height:340px;overflow:auto}
+    details summary{cursor:pointer}
+    .diff{white-space:pre-wrap;background:var(--inset);border:1px solid #314154;border-radius:10px;padding:10px}
+    .add{background:#0b2e16} .del{background:#3a1111}
+    .filelist{max-height:260px;overflow:auto}
+    .tag{background:var(--tag);border-radius:8px;padding:2px 6px;margin:0 4px 4px 0;display:inline-block}
+    .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .tight > *+*{margin-top:6px}
+    .status{display:flex;gap:8px;align-items:center}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚙️ CodingAgent Companion — One-Column Builder (No API)</h1>
+  <div class="status small" id="selftest">Self-test: <span class="pill">running…</span> <span id="errline"></span></div>
+
+  <div class="stack">
+
+    <div class="card">
+      <h3>0) Settings & Presets</h3>
+      <div class="row">
+        <div>
+          <label>Preset</label>
+          <select id="preset">
+            <option value="usrp">USRP v2.2 — Double-Precision</option>
+            <option value="hfsoneshot">HFS-OSCAP — One-Shot</option>
+            <option value="minimal">Minimal Clean</option>
+          </select>
+        </div>
+        <div>
+          <label>Persona / Style</label>
+          <select id="persona">
+            <option value="concise">Concise professional</option>
+            <option value="research">Research-heavy (citations)</option>
+            <option value="coach">Coach/mentor tone</option>
+          </select>
+        </div>
+        <div>
+          <label>Language</label>
+          <select id="outlang">
+            <option>en</option><option>de</option><option>nl</option><option>pl</option><option>af</option>
+          </select>
+        </div>
+      </div>
+      <div class="bar" style="margin-top:8px">
+        <button id="saveLocal" class="btn small">💾 Save (local)</button>
+        <button id="loadLocal" class="btn secondary small">↩ Load (local)</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none">
+        <button id="importJSON" class="btn ghost small">📥 Import JSON</button>
+        <button id="exportJSON" class="btn ghost small">📤 Export JSON</button>
+        <button id="resetDefaults" class="btn ghost small">♻ Reset</button>
+      </div>
+      <div class="small">Settings are auto-saved to localStorage; you can also import/export a JSON profile.</div>
+    </div>
+
+    <div class="card">
+      <h3>1) Project & Task</h3>
+      <div class="row">
+        <div><label>Project Name</label><input id="proj" type="text" placeholder="DoAndroidsTrain"></div>
+        <div><label>License</label>
+          <select id="license"><option>MIT</option><option>Apache-2.0</option><option>Proprietary</option></select>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>Task Title</label><input id="title" type="text" placeholder="HTML5 Affirmations App vNext"></div>
+        <div><label>Non-functional Target</label><input id="nfr" type="text" placeholder="LCP &lt; 2.5s, WCAG AA"></div>
+      </div>
+      <label>Objective (2–4 sentences)</label>
+      <textarea id="objective" placeholder="What to build/fix and why..."></textarea>
+      <div class="row">
+        <div><label>Requirement 1</label><input id="req1" type="text" placeholder="Play/pause, per-voice FX"></div>
+        <div><label>Requirement 2</label><input id="req2" type="text" placeholder="Echo/reverb routing"></div>
+      </div>
+      <div class="row">
+        <div><label>ESLint warnings ≤</label><input id="warncap" type="number" min="0" value="0"></div>
+        <div><label>Dev Port (Frontend)</label><input id="devport" type="number" value="5173"></div>
+        <div><label>API Port (Backend)</label><input id="apiport" type="number" value="3000"></div>
+      </div>
+    </div>
+
+    <div class="card tight">
+      <h3>2) Advanced Prompt Options</h3>
+      <div class="row">
+        <div>
+          <label>Include Sections</label>
+          <div class="small">
+            <label><input type="checkbox" class="sec" value="TLDR_MULTILINGUAL" checked> TLDR_MULTILINGUAL</label><br>
+            <label><input type="checkbox" class="sec" value="1) Direct Answer" checked> 1) Direct Answer</label><br>
+            <label><input type="checkbox" class="sec" value="2) How It’s Done" checked> 2) How It’s Done</label><br>
+            <label><input type="checkbox" class="sec" value="3) Alternatives" checked> 3) Alternatives</label><br>
+            <label><input type="checkbox" class="sec" value="4) Action Plan" checked> 4) Action Plan</label>
+          </div>
+        </div>
+        <div>
+          <label>Repo Fence Marker</label>
+          <select id="repoFence">
+            <option value="```repo">```repo</option>
+            <option value="```repository">```repository</option>
+          </select>
+          <label style="margin-top:8px">File Marker Style</label>
+          <select id="fileMarker">
+            <option value="// FILE: <path> [lang=<language>]">// FILE: &nbsp;[lang=...]</option>
+            <option value="--- FILE: <path> [lang=<language>]">--- FILE: &nbsp;[lang=...]</option>
+          </select>
+        </div>
+        <div>
+          <label>Quality / Security Gates</label>
+          <div class="small">
+            <label><input type="checkbox" class="gate" value="ESLint: no errors; warnings <= {WARNCAP}" checked> ESLint gate</label><br>
+            <label><input type="checkbox" class="gate" value="Prettier formatted" checked> Prettier</label><br>
+            <label><input type="checkbox" class="gate" value="TypeScript: no errors" checked> TypeScript</label><br>
+            <label><input type="checkbox" class="gate" value="Validate & sanitize inputs" checked> Validate/Sanitize</label>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Acceptance Tests</label>
+          <textarea id="accept" class="mono" placeholder="- Frontend builds with `npm run build`.\n- Unit tests pass: `npm test`."></textarea>
+        </div>
+        <div>
+          <label>Allowed Deps</label>
+          <input id="depsAllowed" type="text" value="zod,dayjs" placeholder="comma-separated">
+          <label style="margin-top:6px">Forbidden Deps</label>
+          <input id="depsForbidden" type="text" value="eval,Function" placeholder="comma-separated">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>3) Source Files (pick folder or drop)</h3>
+      <div class="row">
+        <input id="dirpick" type="file" webkitdirectory multiple>
+        <input id="filepick" type="file" multiple>
+      </div>
+      <div id="drop" class="drop">Drag &amp; Drop files here</div>
+      <div class="small">Included files:</div>
+      <div id="filelist" class="files mono"></div>
+      <div class="small">Approx. token estimate: <span id="tok" class="pill">0</span></div>
+    </div>
+
+    <div class="card">
+      <h3>4) Build Super Prompt</h3>
+      <div class="bar" style="margin-bottom:8px">
+        <button id="build" class="btn">Build Prompt</button>
+        <button id="copy" class="btn secondary">Copy</button>
+        <button id="downloadPrompt" class="btn ghost">Download .txt</button>
+        <button id="clearPrompt" class="btn ghost">Clear</button>
+        <button id="openchat" class="btn ghost" title="Opens ChatGPT in a new tab">Open ChatGPT</button>
+      </div>
+      <pre id="prompt" class="code mono"></pre>
+    </div>
+
+    <div class="card">
+      <h3>5) Paste AI Output (repo fence)</h3>
+      <textarea id="aiout" class="mono" placeholder="Paste the assistant output that contains ```repo ...```"></textarea>
+      <div class="bar" style="margin-top:8px">
+        <button id="parse" class="btn">Parse &amp; Diff</button>
+        <button id="pickwrite" class="btn secondary" title="Grant write access to a folder for applying changes">Choose Target Folder</button>
+      </div>
+      <div id="parseStatus" class="small"></div>
+      <details open>
+        <summary>Changed / New Files</summary>
+        <div id="changes" class="filelist"></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h3>6) Apply Selected Changes</h3>
+      <div class="small">Select files below and click <b>Apply</b>. If your browser blocks direct writes, use <i>Download</i> per file.</div>
+      <div class="bar" style="margin:8px 0">
+        <button id="apply" class="btn">Apply Selected</button>
+        <button id="applyAll" class="btn secondary">Apply All</button>
+      </div>
+      <div id="applyStatus" class="small"></div>
+      <div id="diffview" class="diff mono" style="margin-top:10px"></div>
+    </div>
+
+    <div class="small">Tip: File System Access API (Chrome/Edge) enables direct writes; otherwise download updated files individually.</div>
+
+  </div>
+</div>
+
+<script>
+/* VHDR — CodingAgent Companion — app.js (inline)
+ * Version: v1.1.1  |  Build: 2025-09-25  Europe/Warsaw
+ * Purpose: One-column UI, advanced options, settings import/export, robust repo parsing, reliable writes. Now with guarded builder & auto-build.
+ * Changelog:
+ * - v1.1.1: tryBuild() with error display; auto-build on init; corrected "\\n" → "\n" in joins.
+ * - v1.1.0: Added presets & toggles; settings (localStorage + JSON); parser hardening; self-test.
+ * - v1.0.0: Initial logic.
+ */
+(() => {
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  const byId = id => document.getElementById(id);
+  const nowISO = () => new Date().toISOString();
+  const escTicks = s => s.replaceAll("```","\\`\\`\\`");
+
+  const state = {
+    files: new Map(),
+    aiFiles: new Map(),
+    writeDir: null,
+    settingsKey: "coding_agent_settings_v111"
+  };
+
+  // Self-test
+  const selftest = () => {
+    const tags = [];
+    try {
+      tags.push(typeof window.showDirectoryPicker !== "undefined" ? "fsapi" : "nofsapi");
+      tags.push(!!navigator.clipboard ? "clip" : "noclip");
+      // simple smoke:
+      tags.push("ok");
+    } catch { tags.push("err"); }
+    const pill = byId("selftest").querySelector(".pill");
+    pill.textContent = "OK ✅ ("+tags.join(", ")+")";
+    pill.style.borderColor = "#2b6";
+  };
+  const showErr = (msg) => {
+    const e = byId("errline");
+    e.textContent = msg ? " — " + msg : "";
+    e.style.color = msg ? "#ff6b6b" : "";
+  };
+
+  // Lang
+  const extToLang = (name) => {
+    const ext = (name.split(".").pop()||"").toLowerCase();
+    const map = {html:"html",htm:"html",css:"css",js:"javascript",mjs:"javascript",cjs:"javascript",
+                 ts:"typescript",tsx:"typescript",jsx:"javascript",json:"json",md:"markdown",
+                 yml:"yaml",yaml:"yaml",svg:"xml",xml:"xml",sh:"bash",py:"python"};
+    return map[ext] || "text";
+  };
+
+  const estimateTokens = (text) => Math.ceil((text||"").replace(/\s+/g,' ').length / 4);
+
+  // Outputs
+  const out = {
+    list: byId("filelist"),
+    tok: byId("tok"),
+    prompt: byId("prompt"),
+    parseStatus: byId("parseStatus"),
+    changes: byId("changes"),
+    diffview: byId("diffview"),
+    applyStatus: byId("applyStatus")
+  };
+
+  // Files
+  const renderFileList = () => {
+    const lines = [];
+    for (const [p, meta] of state.files.entries()) lines.push(p + "  (" + meta.content.length + " chars)");
+    out.list.textContent = lines.length ? lines.join("\n") : "(none)";
+  };
+  const addFiles = async (fileList) => {
+    for (const f of fileList) {
+      if (!f || !f.name) continue;
+      const path = f.webkitRelativePath && f.webkitRelativePath.length ? f.webkitRelativePath : f.name;
+      const content = await f.text();
+      state.files.set(path, { name: f.name, path, content, lang: extToLang(f.name) });
+    }
+    renderFileList();
+    updateTokenEstimate();
+  };
+
+  // Settings
+  const defaults = {
+    preset: "usrp",
+    persona: "concise",
+    outlang: "en",
+    repoFence: "```repo",
+    fileMarker: "// FILE: <path> [lang=<language>]",
+    gates: ["ESLint: no errors; warnings <= {WARNCAP}","Prettier formatted","TypeScript: no errors","Validate & sanitize inputs"],
+    accept: "- Frontend builds with `npm run build`.\n- Backend healthcheck 200 on /healthz.\n- Unit tests pass: `npm test`.",
+    depsAllowed: "zod,dayjs",
+    depsForbidden: "eval,Function",
+    sections: ["TLDR_MULTILINGUAL","1) Direct Answer","2) How It’s Done","3) Alternatives","4) Action Plan"],
+    proj: "DoAndroidsTrain", license: "MIT", title: "Task",
+    objective: "Build/Refactor.", req1: "Requirement A", req2: "Requirement B",
+    nfr: "Reasonable performance & UX",
+    warncap: 0, devport: 5173, apiport: 3000
+  };
+  const readForm = () => {
+    const sections = $$(".sec").filter(x=>x.checked).map(x=>x.value);
+    const gates = $$(".gate").filter(x=>x.checked).map(x=>x.value);
+    return {
+      preset: byId("preset").value,
+      persona: byId("persona").value,
+      outlang: byId("outlang").value,
+      repoFence: byId("repoFence").value,
+      fileMarker: byId("fileMarker").value,
+      gates,
+      accept: byId("accept").value.trim(),
+      depsAllowed: byId("depsAllowed").value.trim(),
+      depsForbidden: byId("depsForbidden").value.trim(),
+      sections,
+      proj: byId("proj").value.trim(),
+      license: byId("license").value,
+      title: byId("title").value.trim(),
+      objective: byId("objective").value.trim(),
+      req1: byId("req1").value.trim(),
+      req2: byId("req2").value.trim(),
+      nfr: byId("nfr").value.trim(),
+      warncap: Number(byId("warncap").value||0),
+      devport: Number(byId("devport").value||5173),
+      apiport: Number(byId("apiport").value||3000),
+    };
+  };
+  const writeForm = (cfg) => {
+    const c = Object.assign({}, defaults, cfg||{});
+    byId("preset").value = c.preset;
+    byId("persona").value = c.persona;
+    byId("outlang").value = c.outlang;
+    byId("repoFence").value = c.repoFence;
+    byId("fileMarker").value = c.fileMarker;
+    byId("accept").value = c.accept;
+    byId("depsAllowed").value = c.depsAllowed;
+    byId("depsForbidden").value = c.depsForbidden;
+    byId("proj").value = c.proj;
+    byId("license").value = c.license;
+    byId("title").value = c.title;
+    byId("objective").value = c.objective;
+    byId("req1").value = c.req1;
+    byId("req2").value = c.req2;
+    byId("nfr").value = c.nfr;
+    byId("warncap").value = c.warncap;
+    byId("devport").value = c.devport;
+    byId("apiport").value = c.apiport;
+    $$(".sec").forEach(cb => cb.checked = c.sections.includes(cb.value));
+    $$(".gate").forEach(cb => cb.checked = c.gates.includes(cb.value));
+  };
+  const saveLocal = () => localStorage.setItem(state.settingsKey, JSON.stringify(readForm()));
+  const loadLocal = () => {
+    const raw = localStorage.getItem(state.settingsKey);
+    if (!raw) return false;
+    try { writeForm(JSON.parse(raw)); return true; } catch { return false; }
+  };
+  const resetDefaults = () => writeForm(defaults);
+
+  const applyPreset = (key) => {
+    if (key==="usrp"){ byId("persona").value="concise"; byId("outlang").value="en"; $$(".sec").forEach(cb=>cb.checked=true); }
+    if (key==="hfsoneshot"){ byId("persona").value="research"; byId("outlang").value="en"; $$(".sec").forEach(cb=>cb.checked=true); }
+    if (key==="minimal"){ byId("persona").value="concise"; $$(".sec").forEach(cb=>cb.checked=(cb.value==="1) Direct Answer"||cb.value==="4) Action Plan")); }
+    saveLocal();
+  };
+
+  // Prompt build
+  const buildPromptText = () => {
+    const cfg = readForm();
+    const filesSection = [];
+    for (const [path, meta] of state.files.entries()) {
+      filesSection.push(`<<<FILE path="${path}" lang="${meta.lang}">`);
+      filesSection.push(meta.content);
+      filesSection.push("<<<END FILE>>>");
+    }
+    const order = cfg.sections.slice();
+    const repoFence = cfg.repoFence;
+    const fileMarker = cfg.fileMarker;
+    const gatesLines = cfg.gates.map(g=>"- \""+g.replace("{WARNCAP}", String(cfg.warncap))+"\"").join("\n    ");
+    const acceptLines = (cfg.accept||"").split(/\r?\n/).filter(Boolean).map(a=>`- ${a}`).join("\n    ");
+    const allowed = (cfg.depsAllowed||"").split(",").map(s=>s.trim()).filter(Boolean).map(s=>`"${s}"`).join(",");
+    const forbidden = (cfg.depsForbidden||"").split(",").map(s=>s.trim()).filter(Boolean).map(s=>`"${s}"`).join(",");
+
+    const header =
+`===== HFS-OSCAP v1.0.0 — HTML5 Full-Stack One-Shot Coding Agent =====
+meta:
+  model_pref: "GPT-5 Thinking"
+  timezone: "Europe/Warsaw"
+  default_language: "${cfg.outlang}"
+  author: "Atlas User"
+  prompt_version: "v1.0.0"
+  run_date: "${nowISO().slice(0,10)}"
+
+project:
+  name: "${cfg.proj}"
+  stack:
+    frontend: ["HTML5","CSS3","TypeScript","Vite"]
+    backend: ["Node.js 20 LTS","Express 4.x"]
+    testing: ["Vitest"]
+    quality: ["ESLint","Prettier","TypeCheck (tsc --noEmit)"]
+  target_env: ["browser","node"]
+  license: "${cfg.license}"
+
+task:
+  title: "${cfg.title}"
+  objective: >
+    ${cfg.objective}
+  requirements:
+    - "${cfg.req1}"
+    - "${cfg.req2}"
+    - "${cfg.nfr}"
+  acceptance_tests:
+    ${acceptLines || "- Frontend builds with \\`npm run build\\`."}
+  deliverables:
+    - "COMPLETE REPO inside one code-fence (see OUTPUT CONTRACT)."
+    - "README with Quickstart."
+    - "Automated tests."
+    - "CHANGELOG.md + per-file VHDR."
+    - "Complexity & risk notes."
+
+constraints:
+  comments_policy: "Minimal—only VHDR + essential TODOs."
+  version_header:
+    pattern: |
+      /*
+       * VHDR — ${cfg.proj} — <RELATIVE_PATH>
+       * Version: <semver>  |  Build: ${nowISO().slice(0,16).replace('T',' ')} Europe/Warsaw
+       * Purpose: <one-line purpose>
+       * Changelog (latest first):
+       * - <semver>: <concise change>
+       * - <prev>: <prior change>
+       */
+  deps:
+    allowed: [${allowed}]
+    forbidden: [${forbidden}]
+  security:
+    - "No secrets/hardcoding; use env."
+    - "Validate & sanitize inputs."
+    - "CSP (frontend), helmet (backend)."
+  quality_gates:
+    ${gatesLines || "- \\"Prettier formatted\\""}
+  syntax_gate:
+    - "Repo must be syntactically valid and runnable."
+  accessibility: "WCAG 2.1 AA basics."
+
+output_contract:
+  order:
+${order.map(x=>"    - \""+x+"\"").join("\n")}
+    - "--- ARTIFACTS START ---"
+    - "\\\`\\\`\\\`repo ... (files) ... \\\`\\\`\\\`"
+  repo_fence: "${escTicks(repoFence)}"
+  file_markers:
+    start: "${fileMarker.replaceAll("<","\\u003C")}"
+    end: "// END FILE"
+  notes:
+    - "Emit a complete, runnable repository with scripts."
+    - "Use minimal comments beyond VHDR."
+    - "If fixing bugs, also include an MRE under tests/."
+
+FILES:
+${filesSection.join("\n") || "  # (none provided)"}
+
+EXECUTION_REQUEST:
+  output_language: "${cfg.outlang}"
+  persona_style: "${cfg.persona}"
+  verbosity: "concise"
+  test_framework: "vitest"
+  dev_server_port: ${cfg.devport}
+  api_port: ${cfg.apiport}
+  build_command: "npm run build"
+  run_command: "npm run dev && npm run dev:server"
+  test_command: "npm test"
+
+FINAL_INSTRUCTIONS:
+  - "Honor OUTPUT CONTRACT strictly."
+  - "Every file begins with a VHDR block and a mini-changelog."
+  - "Keep inline comments minimal elsewhere."
+  - "Emit the complete repo inside a single \\`\\`\\`repo code fence using file markers."
+  - "After artifacts, stop."
+===== END HFS-OSCAP =====`;
+    return header;
+  };
+
+  const updateTokenEstimate = () => {
+    const txt = buildPromptText();
+    const tokens = estimateTokens(txt);
+    out.tok.textContent = tokens.toLocaleString();
+  };
+
+  // Diff
+  const diffLines = (a, b) => {
+    const A = (a||"").split(/\r?\n/), B = (b||"").split(/\r?\n/);
+    const n=A.length, m=B.length;
+    const dp = Array(n+1).fill(0).map(()=>Array(m+1).fill(0));
+    for(let i=1;i<=n;i++) for(let j=1;j<=m;j++) dp[i][j]=A[i-1]===B[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
+    const ops=[]; let i=n,j=m;
+    while(i>0||j>0){
+      if(i>0&&j>0&&A[i-1]===B[j-1]){ ops.push([" ",A[i-1]]); i--; j--; }
+      else if(j>0 && (i===0 || dp[i][j-1]>=dp[i-1][j])){ ops.push(["+",B[j-1]]); j--; }
+      else { ops.push(["-",A[i-1]]); i--; }
+    }
+    return ops.reverse();
+  };
+
+  // Parser
+  function parseRepoFence(text){
+    if(!text) return { ok:false, msg:"Empty input." };
+    const fence = /```(?:repo|repository)\s*([\s\S]*?)```/m.exec(text);
+    if(!fence) return { ok:false, msg:"No ```repo fence found." };
+    const block = fence[1];
+    const fileRe = /^(?:\/\/|---)\s*FILE:\s*([^\[\r\n]+?)(?:\s+\[lang=([^\]]+)\])?\s*[\r\n]+([\s\S]*?)(?=^(?:\/\/|---)\s*END FILE\s*$|$)/gm;
+    const results = new Map();
+    let m;
+    while ((m = fileRe.exec(block)) !== null) {
+      const path = (m[1]||"").trim();
+      const lang = (m[2]||"text").trim();
+      const content = (m[3]||"");
+      if(path) results.set(path, { path, lang, content });
+    }
+    return results.size ? { ok:true, files:results } : { ok:false, msg:"No files found inside repo fence." };
+  }
+
+  const renderChanges = () => {
+    out.changes.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    for (const [path, ai] of state.aiFiles.entries()) {
+      const orig = state.files.get(path)?.content || "";
+      const ops = diffLines(orig, ai.content);
+      const changed = ops.some(op => op[0] !== " ");
+      const wrap = document.createElement("div");
+      wrap.className = "card";
+      wrap.style.background = "#0e141a";
+      wrap.innerHTML = `
+        <div class="bar" style="align-items:center">
+          <input type="checkbox" data-path="${path}" ${changed?"checked":""}>
+          <div style="flex:1"><b>${path}</b> ${changed?'<span class="pill warn">changed</span>':'<span class="pill ok">new/unchanged</span>'}
+            <span class="tag">lang=${ai.lang}</span>
+            <button class="btn ghost small" data-show="${path}">Show Diff</button>
+            <button class="btn ghost small" data-dl="${path}">Download</button>
+          </div>
+        </div>`;
+      frag.appendChild(wrap);
+    }
+    out.changes.appendChild(frag);
+  };
+
+  const ensureDir = async (dirHandle, path) => {
+    const parts = path.split("/"); parts.pop();
+    let cur = dirHandle;
+    for (const folder of parts) { if (!folder) continue; cur = await cur.getDirectoryHandle(folder, { create:true }); }
+    return cur;
+  };
+  const writeFile = async (dirHandle, path, content) => {
+    const dir = await ensureDir(dirHandle, path);
+    const name = path.split("/").pop();
+    const fileHandle = await dir.getFileHandle(name, { create:true });
+    const ws = await fileHandle.createWritable();
+    await ws.write(content);
+    await ws.close();
+  };
+
+  // Build guard
+  const tryBuild = () => {
+    try {
+      const txt = buildPromptText();
+      out.prompt.textContent = txt;
+      updateTokenEstimate();
+      showErr(""); // clear
+    } catch (e) {
+      out.prompt.textContent = "";
+      showErr("Build error: " + (e?.message||e));
+      console.error(e);
+    }
+  };
+
+  // Events
+  byId("dirpick").addEventListener("change", e => addFiles(e.target.files));
+  byId("filepick").addEventListener("change", e => addFiles(e.target.files));
+
+  const drop = byId("drop");
+  drop.addEventListener("dragover", e => { e.preventDefault(); drop.style.background="#0c1520"; });
+  drop.addEventListener("dragleave", () => { drop.style.background=""; });
+  drop.addEventListener("drop", async e => {
+    e.preventDefault(); drop.style.background="";
+    if (e.dataTransfer.files?.length) await addFiles(e.dataTransfer.files);
+  });
+
+  byId("build").addEventListener("click", () => { tryBuild(); saveLocal(); });
+  byId("copy").addEventListener("click", async () => {
+    const txt = out.prompt.textContent || buildPromptText();
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(txt); alert("Prompt copied to clipboard."); }
+    else { showErr("Clipboard API unavailable"); }
+  });
+  byId("downloadPrompt").addEventListener("click", () => {
+    const txt = out.prompt.textContent || buildPromptText();
+    const blob = new Blob([txt], {type:"text/plain"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "super-prompt.txt";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  byId("clearPrompt").addEventListener("click", () => { out.prompt.textContent = ""; });
+
+  byId("openchat").addEventListener("click", () => { window.open("https://chat.openai.com", "_blank"); });
+
+  byId("parse").addEventListener("click", () => {
+    const raw = byId("aiout").value;
+    const parsed = parseRepoFence(raw);
+    if (!parsed.ok) { out.parseStatus.innerHTML = `<span class="bad">Parse error:</span> ${parsed.msg}`; return; }
+    state.aiFiles = parsed.files;
+    out.parseStatus.innerHTML = `<span class="ok">Parsed ${parsed.files.size} file(s).</span>`;
+    renderChanges();
+  });
+
+  byId("pickwrite").addEventListener("click", async () => {
+    if (!window.showDirectoryPicker) { alert("File System Access API not supported in this browser."); return; }
+    state.writeDir = await window.showDirectoryPicker({ mode:"readwrite" });
+    out.applyStatus.innerHTML = `<span class="ok">Write access granted.</span>`;
+  });
+
+  const collectSelected = () => {
+    const selected = [];
+    $$("#changes input[type=checkbox]").forEach(cb => { if (cb.checked) selected.push(cb.dataset.path); });
+    return selected;
+  };
+
+  byId("apply").addEventListener("click", async () => {
+    if (!state.writeDir) { alert("Choose a target folder first."); return; }
+    const paths = collectSelected();
+    if (!paths.length) { alert("No files selected."); return; }
+    for (const p of paths) await writeFile(state.writeDir, p, state.aiFiles.get(p).content);
+    out.applyStatus.innerHTML = `<span class="ok">Applied ${paths.length} file(s).</span>`;
+  });
+
+  byId("applyAll").addEventListener("click", async () => {
+    if (!state.writeDir) { alert("Choose a target folder first."); return; }
+    let count=0;
+    for (const [p, file] of state.aiFiles.entries()) { await writeFile(state.writeDir, p, file.content); count++; }
+    out.applyStatus.innerHTML = `<span class="ok">Applied ${count} file(s).</span>`;
+  });
+
+  // Settings changes
+  byId("preset").addEventListener("change", e => { applyPreset(e.target.value); tryBuild(); });
+  ["persona","outlang","repoFence","fileMarker","accept","depsAllowed","depsForbidden",
+   "proj","license","title","objective","req1","req2","nfr","warncap","devport","apiport"]
+   .forEach(id => byId(id).addEventListener("input", () => { saveLocal(); }));
+
+  $$(".sec").forEach(cb => cb.addEventListener("change", () => { saveLocal(); }));
+  $$(".gate").forEach(cb => cb.addEventListener("change", () => { saveLocal(); }));
+
+  byId("saveLocal").addEventListener("click", () => { saveLocal(); alert("Saved to localStorage."); });
+  byId("loadLocal").addEventListener("click", () => { const ok = loadLocal(); if(!ok) alert("No saved settings."); tryBuild(); });
+  byId("resetDefaults").addEventListener("click", () => { resetDefaults(); saveLocal(); tryBuild(); });
+  byId("importJSON").addEventListener("click", () => byId("importFile").click());
+  byId("importFile").addEventListener("change", async (e) => {
+    const f = e.target.files?.[0]; if(!f) return;
+    try { const txt = await f.text(); const cfg = JSON.parse(txt); writeForm(cfg); saveLocal(); tryBuild(); }
+    catch { alert("Invalid JSON."); }
+    e.target.value = "";
+  });
+  byId("exportJSON").addEventListener("click", () => {
+    const cfg = readForm();
+    const blob = new Blob([JSON.stringify(cfg,null,2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "coding-agent-settings.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // Init
+  resetDefaults();
+  loadLocal();
+  selftest();
+  tryBuild(); // auto-build so the prompt appears immediately
+})();
+</script>
+</body>
+</html>

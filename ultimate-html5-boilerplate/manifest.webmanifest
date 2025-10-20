@@ -1,0 +1,16 @@
+{
+  "name": "Ultimate HTML5 Boilerplate",
+  "short_name": "UHB Aurora",
+  "description": "Ultimate HTML5 boilerplate for rich web apps and games.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#05060a",
+  "theme_color": "#12131a",
+  "icons": [
+    {
+      "src": "./assets/favicon.svg",
+      "sizes": "128x128",
+      "type": "image/svg+xml"
+    }
+  ]
+}

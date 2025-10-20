@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" data-project="Ultimate HTML5 Boilerplate" data-version="0.0.1" data-codename="Aurora">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Ultimate HTML5 boilerplate for rich web apps and games" />
+    <meta name="theme-color" content="#12131a" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Ultimate HTML5 Boilerplate · Aurora</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <link rel="stylesheet" href="./styles/index.css" />
+  </head>
+  <body>
+    <header class="app-header" role="banner">
+      <h1 class="app-title">Ultimate HTML5 Boilerplate</h1>
+      <p class="app-meta">
+        Version <span data-bind="version">0.0.1</span> · Codename <span data-bind="codename">Aurora</span>
+      </p>
+    </header>
+
+    <main class="app-main" role="main">
+      <section class="app-stage" aria-label="Interactive stage">
+        <canvas id="primary-canvas" width="1280" height="720" role="img" aria-label="Primary render surface"></canvas>
+      </section>
+
+      <section class="app-ui" aria-live="polite">
+        <p class="app-status" data-bind="status">Initializing systems…</p>
+        <div class="app-controls" data-component="control-panel">
+          <button type="button" data-action="toggle-loop">Toggle Loop</button>
+          <button type="button" data-action="reset-state">Reset State</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer" role="contentinfo">
+      <small>&copy; <span data-bind="year"></span> Ultimate HTML5 Boilerplate. Built for modern web experiences.</small>
+    </footer>
+
+    <script type="module" src="./scripts/main.js"></script>
+  </body>
+</html>

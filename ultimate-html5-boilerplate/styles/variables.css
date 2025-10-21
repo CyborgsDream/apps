@@ -1,0 +1,20 @@
+:root {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --text-primary: #f5f7ff;
+  --text-secondary: rgba(237, 240, 255, 0.76);
+  --surface-background: radial-gradient(circle at top, #10121b 0%, #05060a 70%);
+  --button-text: #f5f7ff;
+  --button-gradient: linear-gradient(135deg, #3a6df0, #7a5cf4 55%, #9c4de0 100%);
+  --focus-ring: 0 0 0 3px rgba(90, 130, 255, 0.45);
+  --shadow-elevated: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --text-primary: #11121a;
+    --text-secondary: rgba(17, 18, 26, 0.7);
+    --surface-background: radial-gradient(circle at top, #f0f4ff 0%, #d9e0ff 70%);
+    --button-text: #0a0d1f;
+    --button-gradient: linear-gradient(135deg, #88b9ff, #9fc5ff 55%, #b4d4ff 100%);
+  }
+}

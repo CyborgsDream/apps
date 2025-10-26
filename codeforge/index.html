@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SplitMerge — CodeForge v0.4.9</title>
+  <style>
+    :root{ --bg:#070c18; --card:#0d1524; --muted:#9aa6b2; --accent:#7c5cff; --text:#e6eef6; --ok:#22c55e; --err:#ef4444; --warn:#f59e0b }
+    [data-theme="light"]{ --bg:#f8fafc; --card:#fff; --muted:#64748b; --accent:#7c5cff; --text:#0f172a }
+    html,body{height:100%;}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,Arial;background:var(--bg);color:var(--text);padding:16px}
+    .wrap{max-width:1200px;margin:0 auto}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+    header svg{flex:0 0 24px}
+    h1{font-size:18px;margin:0}
+    .tag{font-size:12px;color:var(--muted);margin-left:8px}
+
+    .controls-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+    .controls-bar .group{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .btn{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#fff;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(124,92,255,.35)}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text)}
+    .btn.ghost.warn{border-color:var(--warn);color:var(--warn)}
+    input[type=file]{display:inline-block}
+    label.small{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+
+    .split-ui{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .split-ui .info{color:var(--muted);font-size:13px;flex:1 1 auto}
+
+    .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:18px}
+    @media(max-width:1000px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+    textarea{width:100%;height:520px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,'Roboto Mono',monospace;font-size:13px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(12,18,32,0.8);color:var(--text);resize:vertical}
+
+    .explorer{width:100%;border-radius:10px;border:1px solid rgba(255,255,255,0.04);overflow:hidden}
+    .explorer .head{display:flex;background:rgba(255,255,255,0.02);padding:8px 10px;font-size:13px;color:var(--muted);gap:6px;font-weight:600}
+    .explorer .head div{flex:1}
+    .explorer .rows{max-height:360px;overflow:auto}
+    .explorer .row{display:flex;align-items:center;padding:8px;border-bottom:1px solid rgba(255,255,255,0.02);gap:8px;font-size:13px}
+    .explorer .row .name{flex:1;font-family:ui-monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .explorer .row .status{width:90px;font-size:13px;color:var(--muted)}
+    .explorer .row .time{width:90px;text-align:right;color:var(--muted);font-size:12px}
+    .explorer .row.ok .status{color:var(--ok)}
+    .explorer .row.err .status{color:var(--err)}
+    .explorer .row.warn .status{color:var(--warn)}
+
+    .file-controls{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+    .file-controls .btn{flex:1 1 auto;min-width:120px;text-align:center}
+
+    .preview-modal{position:fixed;inset:0;background:rgba(2,6,23,0.7);display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(3px)}
+    .preview-card{background:var(--card);width:100%;max-width:1000px;border-radius:12px;padding:16px;border:1px solid rgba(255,255,255,0.08)}
+    .preview-card pre{height:60vh;overflow:auto;background:rgba(12,18,32,0.65);border:1px solid rgba(255,255,255,0.04);padding:12px;border-radius:8px;font-family:ui-monospace;font-size:13px;color:var(--text)}
+
+    .spinner{display:inline-flex;align-items:center;gap:8px}
+    .spinner .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);opacity:0.9;animation:spinPulse 1s linear infinite}
+    @keyframes spinPulse{0%{transform:scale(1);opacity:1}50%{transform:scale(0.6);opacity:0.4}100%{transform:scale(1);opacity:1}}
+
+    footer{margin-top:12px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+    .muted{color:var(--muted)}
+    details.settings{margin-top:14px}
+    details.settings summary{cursor:pointer;color:var(--muted);font-size:13px;margin-bottom:8px}
+    .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:13px}
+    .settings-grid label{display:flex;align-items:center;gap:6px;color:var(--muted)}
+  </style>
+</head>
+<body data-theme="dark">
+  <div class="wrap">
+    <header>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6.5h8m-8 5h6m-6 5h10" stroke="#7c5cff" stroke-width="2" stroke-linecap="round"/><rect x="12.5" y="3.5" width="8" height="17" rx="2.5" stroke="#7c5cff" stroke-width="2"/></svg>
+      <div>
+        <h1>SplitMerge</h1>
+        <div class="tag">single-file app • FS Access API • CodeForge v0.4.9</div>
+      </div>
+    </header>
+
+    <div class="controls-bar">
+      <div class="group">
+        <button id="pasteBtnTop" class="btn">Paste from clipboard</button>
+        <label class="small">Open from file: <input id="fileLoaderTop" type="file" accept="text/*,.json,.md,.js,.css,.html"/></label>
+        <button id="pickDirSplit" class="btn ghost">Select target directory</button>
+        <button id="detectFilesBtn" class="btn ghost">Detect files</button>
+        <button id="doSplit" class="btn">Split files</button>
+      </div>
+
+      <div style="margin-left:auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label class="small"><input id="saveBinaryToggle" type="checkbox" checked /> Save binary files</label>
+        <label class="small"><input id="slugifyToggleTop" type="checkbox" checked /> Slugify filenames</label>
+        <label class="small"><input id="includeOrphansToggle" type="checkbox" /> Capture orphaned text</label>
+        <div id="processingIndicator" style="display:none" class="spinner"><span class="dot"></span><span class="muted">Processing…</span></div>
+      </div>
+    </div>
+
+    <div class="split-ui meta-line"><div class="info">v0.4.9: safer parsing, configurable header detection & orphan capture, plus improved error diagnostics.</div></div>
+
+    <div class="grid">
+      <section class="card">
+        <h3>Merged file (to split)</h3>
+        <textarea id="inputText" placeholder="Paste or load merged text here"></textarea>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="muted">Selected split directory: <span id="selectedSplitDirPath" style="font-weight:600">(none)</span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="downloadSplit" class="btn ghost">Download merged .txt</button>
+            <button id="pickDirMerge" class="btn ghost">Pick directory to merge</button>
+            <button id="doMerge" class="btn ghost">Merge directory</button>
+          </div>
+        </div>
+        <details class="settings">
+          <summary>Detection settings</summary>
+          <div class="settings-grid">
+            <label><input type="checkbox" id="headingPatternToggle" checked /> # Heading markers</label>
+            <label><input type="checkbox" id="bracketPatternToggle" checked /> [FILE: path] markers</label>
+            <label><input type="checkbox" id="commentPatternToggle" checked /> Comment-based File markers</label>
+            <label><input type="checkbox" id="frontMatterPatternToggle" checked /> --- file: path front-matter</label>
+            <label><input type="checkbox" id="fencePatternToggle" /> Fenced ```file path fences</label>
+          </div>
+        </details>
+      </section>
+
+      <aside class="card">
+        <h3 style="margin-top:2px;margin-bottom:8px">Detected files</h3>
+        <div class="explorer">
+          <div class="head"><div style="flex:0 0 28px"></div><div style="flex:1">Name</div><div style="width:90px">Type</div><div style="width:60px">Status</div></div>
+          <div id="detectedRows" class="rows"></div>
+        </div>
+
+        <div class="file-controls">
+          <button id="selectAllBtn" class="btn ghost">Select all</button>
+          <button id="deselectAllBtn" class="btn ghost">Deselect all</button>
+          <button id="previewBtn" class="btn ghost">Preview selected</button>
+          <button id="exportReportBtn" class="btn ghost warn">Download report</button>
+        </div>
+
+        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div class="muted">Last used dir: <span id="targetDir" style="font-weight:600">(none)</span></div>
+          <div class="muted">FS API: <span id="fsSupport">checking…</span></div>
+        </div>
+        <footer>
+          <span>Tip: uncheck images if you don't want to save binary files.</span>
+          <span id="orphansSummary"></span>
+        </footer>
+      </aside>
+    </div>
+  </div>
+
+  <div id="previewModal" style="display:none" class="preview-modal"><div class="preview-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong id="previewTitle">Preview</strong><div><button id="closePreview" class="btn ghost">Close</button></div></div><pre id="previewContent"></pre></div></div>
+
+  <script>
+  // Version inline: CodeForge v0.4.9
+  (function(){
+    'use strict';
+    const inputText = document.getElementById('inputText');
+    const fileLoaderTop = document.getElementById('fileLoaderTop');
+    const pasteBtnTop = document.getElementById('pasteBtnTop');
+    const pickDirSplit = document.getElementById('pickDirSplit');
+    const doSplit = document.getElementById('doSplit');
+    const detectFilesBtn = document.getElementById('detectFilesBtn');
+    const downloadSplit = document.getElementById('downloadSplit');
+    const pickDirMerge = document.getElementById('pickDirMerge');
+    const doMerge = document.getElementById('doMerge');
+    const targetDirEl = document.getElementById('targetDir');
+    const detectedRows = document.getElementById('detectedRows');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    const exportReportBtn = document.getElementById('exportReportBtn');
+    const saveBinaryToggle = document.getElementById('saveBinaryToggle');
+    const slugifyToggleTop = document.getElementById('slugifyToggleTop');
+    const includeOrphansToggle = document.getElementById('includeOrphansToggle');
+    const fsSupport = document.getElementById('fsSupport');
+    const selectedSplitDirPath = document.getElementById('selectedSplitDirPath');
+    const processingIndicator = document.getElementById('processingIndicator');
+    const previewModal = document.getElementById('previewModal');
+    const previewContent = document.getElementById('previewContent');
+    const previewTitle = document.getElementById('previewTitle');
+    const closePreview = document.getElementById('closePreview');
+    const orphansSummary = document.getElementById('orphansSummary');
+    const headingPatternToggle = document.getElementById('headingPatternToggle');
+    const bracketPatternToggle = document.getElementById('bracketPatternToggle');
+    const commentPatternToggle = document.getElementById('commentPatternToggle');
+    const frontMatterPatternToggle = document.getElementById('frontMatterPatternToggle');
+    const fencePatternToggle = document.getElementById('fencePatternToggle');
+
+    let targetDirHandleForSplit = null;
+    let mergeDirHandle = null;
+    let detectedEntries = [];
+    let orphanedText = '';
+
+    const reportLog = [];
+    function logEvent(action, detail, status='info'){
+      const ts = new Date().toISOString();
+      reportLog.push({ ts, action, detail, status });
+    }
+
+    function setProcessing(on){ processingIndicator.style.display = on ? 'inline-flex' : 'none'; }
+    function nowTime(){ return new Date().toLocaleTimeString(); }
+    function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    const HEADING_REGEX = /^#{1,6}\s+(.+)$/;
+    const BRACKET_REGEX = /^\s*\\?\[\s*FILE\s*:\s*([^\]]+)\]/i;
+    const COMMENT_REGEX = /^\s*(?:\/\/|\/\*|\*+|<!--|;+|#|@)\s*File\s*:\s*(.+)$/i;
+    const FRONT_MATTER_REGEX = /^---\s*file\s*:\s*(.+)$/i;
+    const FENCE_REGEX = /^```+\s*file\s*:?\s*(.+)$/i;
+
+    function parseMergedTextMulti(text){
+      const lines = String(text || '').split(/\r?\n/);
+      const entries = [];
+      let current = null;
+      let inFenceBlock = false;
+      let fencePath = null;
+      let rawBuffer = [];
+      orphanedText = '';
+
+      function finalizeCurrent(){
+        if(current){
+          current.content = rawBuffer.join('\n');
+          if(current.content.endsWith('\n')) current.content = current.content.replace(/\n+$/, '\n');
+          entries.push(current);
+        }
+        current = null;
+        rawBuffer = [];
+      }
+
+      function startNew(path, meta){
+        finalizeCurrent();
+        current = { path: normalizePath(path), rawHeading: meta || path, content:'' };
+        rawBuffer = [];
+      }
+
+      for(let i=0;i<lines.length;i++){
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        if(!inFenceBlock && fencePatternToggle.checked && trimmed.match(/^```/)){
+          const match = trimmed.match(FENCE_REGEX);
+          if(match){
+            fencePath = match[1];
+            startNew(fencePath, line);
+            inFenceBlock = true;
+            continue;
+          }
+        } else if(inFenceBlock){
+          if(trimmed.startsWith('```')){
+            inFenceBlock = false;
+            fencePath = null;
+            finalizeCurrent();
+            continue;
+          }
+        }
+
+        const headingEnabled = headingPatternToggle.checked;
+        const bracketEnabled = bracketPatternToggle.checked;
+        const commentEnabled = commentPatternToggle.checked;
+        const frontEnabled = frontMatterPatternToggle.checked;
+
+        let matched = false;
+        if(!inFenceBlock && headingEnabled){
+          const m = line.match(HEADING_REGEX);
+          if(m){
+            startNew(m[1], line);
+            matched = true;
+          }
+        }
+        if(!matched && !inFenceBlock && bracketEnabled){
+          const m = line.match(BRACKET_REGEX);
+          if(m){
+            startNew(m[1], line);
+            matched = true;
+          }
+        }
+        if(!matched && !inFenceBlock && commentEnabled){
+          const stripped = line.replace(/^\s*\*\s*/, '* ');
+          const m = stripped.match(COMMENT_REGEX);
+          if(m){
+            startNew(m[1], line);
+            matched = true;
+          }
+        }
+        if(!matched && !inFenceBlock && frontEnabled){
+          const m = line.match(FRONT_MATTER_REGEX);
+          if(m){
+            startNew(m[1], line);
+            matched = true;
+          }
+        }
+
+        if(matched){
+          continue;
+        }
+
+        if(current){
+          rawBuffer.push(line);
+        } else if(includeOrphansToggle.checked) {
+          orphanedText += (orphanedText ? '\n' : '') + line;
+        }
+      }
+
+      finalizeCurrent();
+      if(includeOrphansToggle.checked && orphanedText.trim()){
+        entries.push({ path:'/__orphans.txt', content:orphanedText, rawHeading:'__orphans', isOrphan:true });
+      }
+      updateOrphanSummary();
+      return dedupeEntries(entries);
+    }
+
+    function dedupeEntries(entries){
+      const byPath = new Map();
+      const result = [];
+      entries.forEach((entry, idx)=>{
+        if(!entry.path){ return; }
+        const key = entry.path;
+        if(byPath.has(key)){
+          const copy = Object.assign({}, entry, { path: autoRenamePath(key, idx) });
+          result.push(copy);
+          logEvent('dedupe', `Duplicate path ${key} renamed to ${copy.path}`, 'warn');
+        } else {
+          byPath.set(key, true);
+          result.push(entry);
+        }
+      });
+      return result;
+    }
+
+    function autoRenamePath(path, idx){
+      const dot = path.lastIndexOf('.');
+      if(dot > -1){
+        return path.slice(0,dot) + ` (${idx})` + path.slice(dot);
+      }
+      return path + ` (${idx})`;
+    }
+
+    function normalizePath(path){
+      if(!path) return path;
+      let normalized = String(path).trim();
+      normalized = normalized.replace(/^["'`\s]+|["'`\s]+$/g,'');
+      normalized = normalized.replace(/\s*\([^)]*\)\s*$/,'');
+      if(!normalized.startsWith('/')) normalized = '/' + normalized;
+      return normalized;
+    }
+
+    function updateOrphanSummary(){
+      if(includeOrphansToggle.checked && orphanedText.trim()){
+        orphansSummary.textContent = 'Captured orphaned text (' + orphanedText.split(/\r?\n/).length + ' lines)';
+      } else {
+        orphansSummary.textContent = '';
+      }
+    }
+
+    function extractBase64Candidate(content){
+      if(!content) return null;
+      let t = String(content).replace(/^[\s\n\r]*/,'');
+      if(t.startsWith('/*')){
+        const end = t.indexOf('*/',2);
+        if(end!==-1) t = t.slice(end+2);
+      }
+      t = t.replace(/^(?:\s*\/\/.*\r?\n)+/,'');
+      const re = /[A-Za-z0-9+\/\=\s]{32,}/g;
+      let m; let best=null;
+      while((m=re.exec(t))!==null){
+        const cleaned = m[0].replace(/\s+/g,'');
+        if(cleaned.length>=32 && (!best || cleaned.length>best.length)) best = cleaned;
+      }
+      if(!best) return null;
+      try{
+        const u = base64ToUint8Array(best);
+        if(u && u.length>0) return best;
+      }catch(e){
+        logEvent('base64-parse-error', String(e), 'error');
+      }
+      return null;
+    }
+
+    function base64ToUint8Array(b64){
+      try{
+        if(!b64) return null;
+        let s = String(b64).trim();
+        const comma = s.indexOf(',');
+        if(comma!==-1 && s.slice(0,comma).includes('base64')) s = s.slice(comma+1);
+        s = s.replace(/\s+/g,'');
+        if(s.length<8) return null;
+        const CH = 0x8000;
+        const len = s.length;
+        const outParts=[];
+        for(let i=0;i<len;i+=CH){
+          const sub = s.substring(i,i+CH);
+          outParts.push(atob(sub));
+        }
+        const joined = outParts.join('');
+        const u8 = new Uint8Array(joined.length);
+        for(let i=0;i<joined.length;i++) u8[i]=joined.charCodeAt(i);
+        return u8;
+      }catch(e){
+        logEvent('base64-decode-error', String(e), 'error');
+        return null;
+      }
+    }
+
+    function detectMimeFromBytes(bytes){
+      if(!bytes || bytes.length<4) return null;
+      if(bytes[0]===0x89 && bytes[1]===0x50 && bytes[2]===0x4E && bytes[3]===0x47) return 'image/png';
+      if(bytes[0]===0xFF && bytes[1]===0xD8) return 'image/jpeg';
+      if(bytes[0]===0x47 && bytes[1]===0x49 && bytes[2]===0x46) return 'image/gif';
+      if(bytes[0]===0x52 && bytes[1]===0x49 && bytes[2]===0x46 && bytes[3]===0x46) return 'image/webp';
+      if(bytes[0]===0x42 && bytes[1]===0x4D) return 'image/bmp';
+      return null;
+    }
+
+    function mimeToExt(mime){
+      if(mime==='image/png') return 'png';
+      if(mime==='image/jpeg') return 'jpg';
+      if(mime==='image/gif') return 'gif';
+      if(mime==='image/webp') return 'webp';
+      if(mime==='image/bmp') return 'bmp';
+      return null;
+    }
+
+    function normalizePathForBinary(path, detectedMime){
+      const parts = String(path).split('/').filter(Boolean);
+      if(parts.length===0) return path;
+      let last = parts.pop();
+      last = last.replace(/\s*\([^)]*\)\s*$/,'');
+      last = last.replace(/[-_.]?base64$/i,'');
+      last = last.trim();
+      const dotIdx = last.lastIndexOf('.');
+      let name = last, ext = '';
+      if(dotIdx>0){
+        name = last.slice(0,dotIdx);
+        ext = last.slice(dotIdx).toLowerCase();
+      }
+      name = name.replace(/[<>:\"\|\?\*\x00-\x1F]+/g,'').replace(/\s+/g,'-');
+      if(detectedMime){
+        const enforced = mimeToExt(detectedMime);
+        if(enforced) ext = '.' + enforced;
+      }
+      if(!ext){
+        const lower = last.toLowerCase();
+        if(/\bpng\b/.test(lower)) ext = '.png';
+        else if(/\b(jpg|jpeg)\b/.test(lower)) ext = '.jpg';
+        else if(/\bgif\b/.test(lower)) ext = '.gif';
+      }
+      last = (name || 'file') + ext;
+      parts.push(last);
+      return '/' + parts.join('/');
+    }
+
+    async function writeFileToDir(rootHandle, path, contents){
+      const parts = String(path).split('/').filter(Boolean);
+      if(parts.length===0) throw new Error('Invalid path: ' + path);
+      const fileName = parts.pop();
+      let dir = rootHandle;
+      for(const p of parts){
+        try{
+          dir = await dir.getDirectoryHandle(p, { create: true });
+        }catch(e){
+          logEvent('dir-create-error', `${p}: ${String(e)}`, 'error');
+          throw e;
+        }
+      }
+      let fileHandle;
+      try{
+        fileHandle = await dir.getFileHandle(fileName, { create: true });
+      }catch(e){
+        logEvent('file-handle-error', `${fileName}: ${String(e)}`, 'error');
+        throw e;
+      }
+      const writable = await fileHandle.createWritable();
+      try{
+        if(contents instanceof Uint8Array || ArrayBuffer.isView(contents)){
+          await writable.write(new Blob([contents]));
+        } else if(contents instanceof ArrayBuffer){
+          await writable.write(new Blob([new Uint8Array(contents)]));
+        } else if(contents instanceof Blob){
+          await writable.write(contents);
+        } else {
+          await writable.write(String(contents ?? ''));
+        }
+      }catch(e){
+        logEvent('write-error', `${path}: ${String(e)}`, 'error');
+        throw e;
+      } finally {
+        await writable.close();
+      }
+    }
+
+    function detectFilesFromText(auto=true){
+      try{
+        const text = inputText.value || '';
+        const entries = parseMergedTextMulti(text);
+        detectedEntries = entries.map((e)=>{
+          const candidate = extractBase64Candidate(e.content);
+          const bytes = candidate ? base64ToUint8Array(candidate) : null;
+          const mime = bytes ? detectMimeFromBytes(bytes) : null;
+          const ext = (e.path && e.path.lastIndexOf('.')>-1) ? e.path.slice(e.path.lastIndexOf('.')+1).toLowerCase() : '';
+          const knownBinaryExt = ['png','jpg','jpeg','gif','webp','ico','bmp'];
+          const isBinary = Boolean(mime) || knownBinaryExt.includes(ext) || /base64/i.test(e.path) || /base64/i.test(e.content);
+          return { path: e.path, content: e.content, isBinary: !!isBinary, mime: mime || null, selected: true, isOrphan: e.isOrphan };
+        });
+        renderDetectedRows();
+        if(auto) addExplorerRow('Detected files: '+detectedEntries.length, 'info', true);
+        logEvent('detect', `Detected ${detectedEntries.length} entries`, 'info');
+      }catch(err){
+        console.error(err);
+        addExplorerRow('Detection failed: '+String(err), 'error', false);
+        logEvent('detect-error', String(err), 'error');
+      }
+    }
+
+    function renderDetectedRows(){
+      detectedRows.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      detectedEntries.forEach((ent, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'row ' + (ent.isOrphan ? 'warn' : (ent.selected? 'ok' : ''));
+        const statusLabel = ent.isOrphan ? 'orphan' : (ent.isBinary? 'binary' : 'text');
+        row.innerHTML = `<div style="flex:0 0 28px"><input type="checkbox" data-idx="${idx}" ${ent.selected? 'checked':''}></div><div class="name" title="${escapeHtml(ent.path)}">${escapeHtml(ent.path)}</div><div class="status">${statusLabel}</div><div style="width:60px"><button class="btn ghost preview-file" data-idx="${idx}">View</button></div>`;
+        frag.appendChild(row);
+      });
+      if(!detectedEntries.length){
+        const empty = document.createElement('div');
+        empty.className = 'row warn';
+        empty.innerHTML = '<div class="name">No files detected</div><div class="status">warning</div><div class="time">'+escapeHtml(nowTime())+'</div>';
+        frag.appendChild(empty);
+      }
+      detectedRows.appendChild(frag);
+    }
+
+    function addExplorerRow(name, status, ok=true){
+      const row = document.createElement('div');
+      let className = ok ? 'row ok' : 'row err';
+      if(status==='warning' || status==='warn') className = 'row warn';
+      row.className = className;
+      row.innerHTML = `<div class="name">${escapeHtml(name)}</div><div class="status">${escapeHtml(status)}</div><div class="time">${escapeHtml(nowTime())}</div>`;
+      const first = detectedRows.parentElement;
+      first.parentNode.insertBefore(row, first);
+      setTimeout(()=>row.remove(), 5000);
+    }
+
+    fileLoaderTop.addEventListener('change', async (e)=>{
+      const f = e.target.files[0];
+      if(!f) return;
+      try{
+        const txt = await f.text();
+        inputText.value = txt;
+        detectFilesFromText();
+        addExplorerRow('Loaded file: '+f.name, 'loaded', true);
+        logEvent('load-file', f.name, 'info');
+      }catch(err){
+        addExplorerRow('Failed to read '+f.name+': '+String(err), 'error', false);
+        logEvent('load-file-error', `${f.name}: ${String(err)}`, 'error');
+      }
+    });
+
+    pasteBtnTop.addEventListener('click', async ()=>{
+      try{
+        if(navigator.clipboard && navigator.clipboard.readText){
+          const txt = await navigator.clipboard.readText();
+          if(txt && txt.length>0){
+            inputText.value = txt;
+            detectFilesFromText();
+            addExplorerRow('Pasted from clipboard', 'pasted', true);
+            logEvent('paste', 'clipboard-readText', 'info');
+            return;
+          }
+        }
+      }catch(e){
+        logEvent('clipboard-error', String(e), 'error');
+      }
+      addExplorerRow('Clipboard API unavailable — click editor and press Ctrl+V', 'warning', false);
+      inputText.focus();
+      const onPaste = (ev)=>{
+        try{
+          ev.preventDefault();
+          const pasted = ev.clipboardData && ev.clipboardData.getData ? ev.clipboardData.getData('text/plain') : '';
+          if(pasted){
+            inputText.value = pasted;
+            detectFilesFromText();
+            addExplorerRow('Pasted via paste event', 'pasted', true);
+            logEvent('paste', 'paste-event', 'info');
+          } else {
+            addExplorerRow('Paste event captured but no text', 'warning', false);
+            logEvent('paste', 'empty', 'warn');
+          }
+        }catch(err){
+          addExplorerRow('Paste failed: '+String(err), 'error', false);
+          logEvent('paste-error', String(err), 'error');
+        }
+        document.removeEventListener('paste', onPaste);
+      };
+      document.addEventListener('paste', onPaste, { once:true });
+    });
+
+    detectFilesBtn.addEventListener('click', ()=>{ detectFilesFromText(false); });
+
+    detectedRows.addEventListener('change', (ev)=>{
+      const t = ev.target;
+      if(t && t.matches('input[type="checkbox"]')){
+        const idx = Number(t.getAttribute('data-idx'));
+        if(!Number.isNaN(idx) && detectedEntries[idx]){
+          detectedEntries[idx].selected = t.checked;
+          renderDetectedRows();
+        }
+      }
+    });
+    detectedRows.addEventListener('click', (ev)=>{
+      const t = ev.target;
+      if(t && t.matches('.preview-file')){
+        const idx = Number(t.getAttribute('data-idx'));
+        if(!Number.isNaN(idx) && detectedEntries[idx]){
+          showPreview(idx);
+        }
+      }
+    });
+
+    selectAllBtn.addEventListener('click', ()=>{
+      detectedEntries.forEach(d=>d.selected=true);
+      renderDetectedRows();
+    });
+    deselectAllBtn.addEventListener('click', ()=>{
+      detectedEntries.forEach(d=>d.selected=false);
+      renderDetectedRows();
+    });
+    previewBtn.addEventListener('click', ()=>{
+      const idx = detectedEntries.findIndex(d=>d.selected);
+      if(idx>=0) showPreview(idx);
+      else addExplorerRow('No file selected for preview', 'warning', false);
+    });
+
+    exportReportBtn.addEventListener('click', ()=>{
+      if(!reportLog.length){
+        addExplorerRow('No report events captured yet', 'warning', false);
+        return;
+      }
+      const lines = reportLog.map(item=>`${item.ts}\t${item.status}\t${item.action}\t${item.detail}`);
+      const blob = new Blob([lines.join('\n')], { type:'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'codeforge-report.log';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addExplorerRow('Report downloaded', 'info', true);
+    });
+
+    function showPreview(idx){
+      const ent = detectedEntries[idx];
+      if(!ent) return;
+      previewTitle.textContent = ent.path;
+      if(ent.isBinary){
+        previewContent.textContent = `Binary file detected (${ent.mime || 'unknown'}). Size: ${ent.content ? ent.content.length : 'unknown'} characters.`;
+      } else {
+        previewContent.textContent = ent.content || '(empty)';
+      }
+      previewModal.style.display = 'flex';
+    }
+    closePreview.addEventListener('click', ()=>{ previewModal.style.display='none'; });
+
+    pickDirSplit.addEventListener('click', async ()=>{
+      try{
+        targetDirHandleForSplit = await window.showDirectoryPicker();
+        selectedSplitDirPath.textContent = targetDirHandleForSplit.name;
+        targetDirEl.textContent = targetDirHandleForSplit.name;
+        addExplorerRow('Selected split dir: '+targetDirHandleForSplit.name, 'dir', true);
+        logEvent('dir-select', targetDirHandleForSplit.name, 'info');
+      }catch(e){
+        addExplorerRow('Directory pick cancelled: '+String(e), 'warning', false);
+        logEvent('dir-select-error', String(e), 'warn');
+      }
+    });
+
+    doSplit.addEventListener('click', async ()=>{
+      if(!targetDirHandleForSplit){
+        addExplorerRow('No target directory selected. Aborting split.', 'error', false);
+        logEvent('split-abort', 'no-directory', 'error');
+        return;
+      }
+      if(!detectedEntries || detectedEntries.length===0){
+        detectFilesFromText(false);
+      }
+      const toProcess = detectedEntries.filter(d=>d.selected);
+      if(toProcess.length===0){
+        addExplorerRow('No files selected to write.', 'warning', false);
+        logEvent('split-abort', 'no-files-selected', 'warn');
+        return;
+      }
+      setProcessing(true);
+      addExplorerRow('Starting split: '+toProcess.length+' selected files', 'start', true);
+      logEvent('split-start', `${toProcess.length} files`, 'info');
+      let written = 0;
+      for(let i=0;i<toProcess.length;i++){
+        const ent = toProcess[i];
+        try{
+          let path = ent.path;
+          if(slugifyToggleTop.checked) path = slugifyPath(path);
+          const candidate = extractBase64Candidate(ent.content);
+          const bytes = candidate ? base64ToUint8Array(candidate) : null;
+          const mime = bytes ? detectMimeFromBytes(bytes) : null;
+          const ext = (path && path.lastIndexOf('.')>-1) ? path.slice(path.lastIndexOf('.')+1).toLowerCase() : '';
+          const knownBinaryExt = ['png','jpg','jpeg','gif','webp','ico','bmp'];
+          const extSuggestsBinary = knownBinaryExt.includes(ext);
+          const shouldTreatAsBinary = Boolean(mime) || extSuggestsBinary || (/base64/i.test(ent.path) || /base64/i.test(ent.content));
+          if(shouldTreatAsBinary && saveBinaryToggle.checked && bytes){
+            const normalized = normalizePathForBinary(path, mime);
+            let finalPath = normalized;
+            if(mime==='image/png' && !finalPath.toLowerCase().endsWith('.png')) finalPath = finalPath.replace(/\.[^.]+$/, '') + '.png';
+            path = slugifyToggleTop.checked ? slugifyPath(finalPath) : finalPath;
+            await writeFileToDir(targetDirHandleForSplit, path, bytes);
+            addExplorerRow(path, 'binary written', true);
+            logEvent('write-binary', path, 'info');
+            written++;
+          } else if(/\.json$/i.test(path)){
+            const stripped = stripCommentsFromJson(ent.content || '');
+            path = slugifyToggleTop.checked ? slugifyPath(path) : path;
+            await writeFileToDir(targetDirHandleForSplit, path, stripped);
+            addExplorerRow(path, 'json', true);
+            logEvent('write-json', path, 'info');
+            written++;
+          } else {
+            path = slugifyToggleTop.checked ? slugifyPath(path) : path;
+            await writeFileToDir(targetDirHandleForSplit, path, ent.content || '');
+            addExplorerRow(path, 'text', true);
+            logEvent('write-text', path, 'info');
+            written++;
+          }
+        }catch(err){
+          addExplorerRow(ent.path+' • error: '+String(err), 'error', false);
+          logEvent('write-error', `${ent.path}: ${String(err)}`, 'error');
+        }
+      }
+      setProcessing(false);
+      addExplorerRow('Split complete. '+written+' files written.', 'done', true);
+      logEvent('split-complete', `${written} files written`, 'info');
+    });
+
+    pickDirMerge.addEventListener('click', async ()=>{
+      try{
+        mergeDirHandle = await window.showDirectoryPicker();
+        targetDirEl.textContent = mergeDirHandle.name;
+        addExplorerRow('Selected directory to merge: '+mergeDirHandle.name, 'dir', true);
+        logEvent('merge-dir-select', mergeDirHandle.name, 'info');
+      }catch(e){
+        addExplorerRow('Directory pick cancelled or unavailable: '+String(e), 'warning', false);
+        logEvent('merge-dir-select-error', String(e), 'warn');
+      }
+    });
+
+    doMerge.addEventListener('click', async ()=>{
+      if(!mergeDirHandle){
+        addExplorerRow('No merge directory selected.', 'error', false);
+        logEvent('merge-abort', 'no-directory', 'error');
+        return;
+      }
+      setProcessing(true);
+      addExplorerRow('Scanning directory to merge...', 'scan', true);
+      logEvent('merge-scan', 'started', 'info');
+      let files = [];
+      try{
+        files = await walkDir(mergeDirHandle, '');
+        addExplorerRow('Files found: '+files.length, 'info', true);
+        logEvent('merge-scan', `${files.length} files`, 'info');
+      }catch(err){
+        addExplorerRow('Failed to scan directory: '+String(err), 'error', false);
+        logEvent('merge-scan-error', String(err), 'error');
+        setProcessing(false);
+        return;
+      }
+      let merged = '';
+      for(let i=0;i<files.length;i++){
+        const f = files[i];
+        try{
+          const file = await f.handle.getFile();
+          const arrayBuffer = await file.arrayBuffer();
+          const u8 = new Uint8Array(arrayBuffer);
+          const mime = detectMimeFromBytes(u8);
+          const path = (slugifyToggleTop.checked? slugifyPath(f.path) : f.path);
+          if(mime){
+            const b64 = uint8ArrayToBase64(u8);
+            merged += '# ' + path + ' (Base64)\n' + b64 + '\n\n';
+            addExplorerRow('Merged binary: '+f.path, 'merged', true);
+            logEvent('merge-binary', path, 'info');
+          } else {
+            const text = await file.text();
+            merged += '# ' + path + '\n' + text + '\n\n';
+            addExplorerRow('Merged text: '+f.path, 'merged', true);
+            logEvent('merge-text', path, 'info');
+          }
+        }catch(err){
+          addExplorerRow('Read error for '+f.path+': '+String(err), 'error', false);
+          logEvent('merge-read-error', `${f.path}: ${String(err)}`, 'error');
+        }
+      }
+      inputText.value = merged;
+      setProcessing(false);
+      addExplorerRow('Merge complete. Merged text placed into input area.', 'done', true);
+      logEvent('merge-complete', 'merged text placed in textarea', 'info');
+    });
+
+    downloadSplit.addEventListener('click', ()=>{
+      const text = inputText.value || '';
+      if(!text){
+        addExplorerRow('No input to download.', 'warning', true);
+        logEvent('download', 'empty', 'warn');
+        return;
+      }
+      const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'merged.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addExplorerRow('Download triggered: merged.txt', 'save', true);
+      logEvent('download', 'merged.txt', 'info');
+    });
+
+    function sanitizeSegment(seg){
+      let s = String(seg||'').trim();
+      s = s.replace(/[<>:\"\|\?\*\x00-\x1F]+/g,'');
+      s = s.replace(/\s+$/,'').replace(/\.+$/,'');
+      s = s.replace(/\s*\([^)]*\)\s*$/,'');
+      s = s.replace(/[-_.]?base64$/i,'');
+      s = s.replace(/\s+/g,'-');
+      if(!s) s='file';
+      return s;
+    }
+
+    function slugifyPath(raw){
+      const path = String(raw||'').trim();
+      if(!path) return path;
+      const segments = path.split('/').filter(Boolean);
+      const out = segments.map(seg=>{
+        const dot = seg.lastIndexOf('.');
+        let name = seg, ext='';
+        if(dot>0){
+          name = seg.slice(0,dot);
+          ext = seg.slice(dot);
+        }
+        name = sanitizeSegment(name).toLowerCase().replace(/[^a-z0-9._\-~]/g,'');
+        return (name||'file') + ext.toLowerCase();
+      });
+      return '/' + out.join('/');
+    }
+
+    function stripCommentsFromJson(text){
+      if(typeof text !== 'string') return text;
+      let out='';
+      let inDouble=false,inSingle=false,inTemplate=false,inEscape=false;
+      let i=0;
+      while(i<text.length){
+        const ch=text[i], next=text[i+1];
+        if(inEscape){ out+=ch; inEscape=false; i++; continue; }
+        if(ch==='\\'){ out+=ch; inEscape=true; i++; continue; }
+        if(inDouble){ if(ch==='"' && !inEscape){ inDouble=false; out+=ch; } else out+=ch; i++; continue; }
+        if(inSingle){ if(ch==="'" && !inEscape){ inSingle=false; out+=ch; } else out+=ch; i++; continue; }
+        if(inTemplate){ if(ch==='`' && !inEscape){ inTemplate=false; out+=ch; } else out+=ch; i++; continue; }
+        if(ch==='"'){ inDouble=true; out+=ch; i++; continue; }
+        if(ch==="'"){ inSingle=true; out+=ch; i++; continue; }
+        if(ch==='`'){ inTemplate=true; out+=ch; i++; continue; }
+        if(ch==='/' && next==='*'){
+          const end=text.indexOf('*/',i+2);
+          if(end===-1){ i=text.length; break; }
+          i=end+2; continue;
+        }
+        if(ch==='/' && next==='/' ){
+          const nl=text.indexOf('\n',i+2);
+          if(nl===-1) break; i=nl+1; continue;
+        }
+        out+=ch; i++;
+      }
+      return out;
+    }
+
+    function uint8ArrayToBase64(u8){
+      let CHUNK = 0x8000; let i=0,s='';
+      while(i<u8.length){
+        s += String.fromCharCode.apply(null, u8.subarray(i, i+CHUNK));
+        i+=CHUNK;
+      }
+      return btoa(s);
+    }
+
+    async function walkDir(dirHandle, prefix=''){
+      const entries=[];
+      for await(const [name, handle] of dirHandle.entries()){
+        if(handle.kind==='file') entries.push({ path: prefix + '/' + name, handle });
+        else if(handle.kind==='directory'){
+          const nested = await walkDir(handle, prefix + '/' + name);
+          entries.push(...nested);
+        }
+      }
+      return entries;
+    }
+
+    (async function detectFS(){
+      try{
+        if('showDirectoryPicker' in window) fsSupport.textContent = 'available';
+        else fsSupport.textContent = 'unavailable';
+      }catch(e){
+        fsSupport.textContent = 'unknown';
+      }
+    })();
+
+    setTimeout(()=>{ if(inputText.value && inputText.value.trim()) detectFilesFromText(); }, 300);
+
+    addExplorerRow('CodeForge v0.4.9 ready — safer parsing & reporting enabled.', 'ready', true);
+  })();
+  </script>
+</body>
+</html>

@@ -528,6 +528,14 @@
                                 <span class="text-white opacity-80" id="voiceVolumeValue">70%</span>
                             </div>
                             <input type="range" class="volume-slider w-full" id="voiceVolume" min="0" max="100" value="70">
+                            <div class="mt-4">
+                                <label class="text-white font-medium block mb-2">
+                                    <i class="fas fa-headphones mr-2"></i>Guided Voice Style
+                                </label>
+                                <select id="voiceStyleSelect" class="w-full bg-white bg-opacity-10 border border-white border-opacity-20 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                                </select>
+                                <p id="voiceStyleDescription" class="text-sm text-blue-100 mt-2 opacity-80"></p>
+                            </div>
                         </div>
                         
                         <!-- Nature Sounds Volume -->
@@ -710,7 +718,52 @@
                 this.speechTimeouts = [];
                 this.voiceDelayNode = null;
                 this.voiceEchoGain = null;
-                
+                this.voiceGain = null;
+                this.voiceQueue = [];
+                this.voiceScript = [];
+                this.currentVoiceSource = null;
+                this.voiceClipCache = new Map();
+                this.useBrowserSpeechFallback = false;
+                this.activeVoiceRequestId = 0;
+
+                this.voiceProfiles = {
+                    en: [
+                        { id: 'Amy', label: 'Amy · Warm English', description: 'Gentle, reassuring tone with a soft British accent.' },
+                        { id: 'Matthew', label: 'Matthew · Calm English', description: 'Grounded and calm North American voice ideal for mindfulness.' },
+                        { id: 'Joanna', label: 'Joanna · Soft English', description: 'Soothing, balanced narration perfect for evening sessions.' }
+                    ],
+                    de: [
+                        { id: 'Vicki', label: 'Vicki · Sanfte Deutsch', description: 'Quiet, encouraging German voice with a friendly cadence.' },
+                        { id: 'Hans', label: 'Hans · Ruhige Deutsch', description: 'Deep, peaceful German narration with steady pacing.' }
+                    ],
+                    nl: [
+                        { id: 'Lotte', label: 'Lotte · Zachte Nederlands', description: 'Light and supportive Dutch voice for gentle guidance.' },
+                        { id: 'Ruben', label: 'Ruben · Rustige Nederlands', description: 'Warm Dutch baritone that remains calm and clear.' }
+                    ],
+                    af: [
+                        { id: 'Tiana', label: 'Tiana · Sagte Afrikaans', description: 'Soft Afrikaans narration designed for deep relaxation.' }
+                    ],
+                    pl: [
+                        { id: 'Maja', label: 'Maja · Delikatny Polski', description: 'Delicate Polish guidance with a nurturing tone.' },
+                        { id: 'Jacek', label: 'Jacek · Spokojny Polski', description: 'Smooth Polish baritone that feels grounded and safe.' }
+                    ]
+                };
+
+                this.selectedVoice = this.voiceProfiles[this.currentLanguage][0].id;
+
+                this.natureSoundSource = null;
+                this.natureGainNode = null;
+                this.natureBuffers = {};
+                this.natureSoundMap = {
+                    rain: 'https://assets.mixkit.co/sfx/preview/mixkit-light-rain-loop-2391.mp3',
+                    ocean: 'https://assets.mixkit.co/sfx/preview/mixkit-ocean-waves-1190.mp3',
+                    forest: 'https://assets.mixkit.co/sfx/preview/mixkit-forest-birds-ambience-1214.mp3',
+                    birds: 'https://assets.mixkit.co/sfx/preview/mixkit-small-birds-loop-2393.mp3'
+                };
+
+                this.binauralGainNodes = [];
+                this.binauralOscillators = [];
+
                 this.meditationScripts = {
                     en: {
                         relaxation: {
@@ -1057,7 +1110,8 @@
                 this.updateVolumeDisplays();
                 this.updateLanguageDisplay();
                 this.setupVisualizer();
-                
+                this.populateVoiceOptions();
+
                 // Set default selections
                 this.selectNatureSound('rain');
                 this.selectMeditation('relaxation');
@@ -1092,17 +1146,50 @@
                 document.getElementById('voiceVolume').addEventListener('input', (e) => {
                     this.voiceVolume = e.target.value / 100;
                     document.getElementById('voiceVolumeValue').textContent = e.target.value + '%';
+                    if (this.voiceGain && this.audioContext) {
+                        const now = this.audioContext.currentTime;
+                        this.voiceGain.gain.cancelScheduledValues(now);
+                        this.voiceGain.gain.setTargetAtTime(this.voiceVolume, now, 0.08);
+                    }
                 });
-                
+
                 document.getElementById('natureVolume').addEventListener('input', (e) => {
                     this.natureVolume = e.target.value / 100;
                     document.getElementById('natureVolumeValue').textContent = e.target.value + '%';
+                    if (this.natureGainNode && this.audioContext) {
+                        const now = this.audioContext.currentTime;
+                        this.natureGainNode.gain.cancelScheduledValues(now);
+                        this.natureGainNode.gain.setTargetAtTime(this.natureVolume, now, 0.1);
+                    }
                 });
-                
+
                 document.getElementById('binauralVolume').addEventListener('input', (e) => {
                     this.binauralVolume = e.target.value / 100;
                     document.getElementById('binauralVolumeValue').textContent = e.target.value + '%';
+                    if (this.binauralGainNodes.length && this.audioContext) {
+                        const now = this.audioContext.currentTime;
+                        this.binauralGainNodes.forEach(gainNode => {
+                            gainNode.gain.cancelScheduledValues(now);
+                            gainNode.gain.setTargetAtTime(this.binauralVolume * 0.8, now, 0.1);
+                        });
+                    }
                 });
+
+                const voiceSelect = document.getElementById('voiceStyleSelect');
+                if (voiceSelect) {
+                    voiceSelect.addEventListener('change', (e) => {
+                        this.selectedVoice = e.target.value;
+                        this.updateVoiceDescription();
+
+                        if (this.isPlaying && this.voiceScript.length) {
+                            if (this.useBrowserSpeechFallback) {
+                                this.scheduleSpeechSynthesisFrom(this.currentCuecardIndex);
+                            } else {
+                                this.startGuidedVoice(this.voiceScript, this.currentCuecardIndex);
+                            }
+                        }
+                    });
+                }
                 
                 // Control buttons
                 document.getElementById('startBtn').addEventListener('click', () => this.startMeditation());
@@ -1128,7 +1215,7 @@
             setupVisualizer() {
                 const canvas = document.getElementById('visualizer');
                 const ctx = canvas.getContext('2d');
-                
+
                 // Set canvas size
                 canvas.width = window.innerWidth;
                 canvas.height = 100;
@@ -1156,6 +1243,40 @@
                     });
                 });
             }
+
+            populateVoiceOptions() {
+                const select = document.getElementById('voiceStyleSelect');
+                if (!select) return;
+
+                const voices = this.voiceProfiles[this.currentLanguage] || [];
+                select.innerHTML = '';
+
+                voices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.id;
+                    option.textContent = voice.label;
+                    select.appendChild(option);
+                });
+
+                if (!voices.find(voice => voice.id === this.selectedVoice)) {
+                    this.selectedVoice = voices.length ? voices[0].id : '';
+                }
+
+                if (this.selectedVoice) {
+                    select.value = this.selectedVoice;
+                }
+
+                this.updateVoiceDescription();
+            }
+
+            updateVoiceDescription() {
+                const descriptionElement = document.getElementById('voiceStyleDescription');
+                if (!descriptionElement) return;
+
+                const voices = this.voiceProfiles[this.currentLanguage] || [];
+                const selected = voices.find(voice => voice.id === this.selectedVoice);
+                descriptionElement.textContent = selected ? selected.description : '';
+            }
             
             animateVisualizer() {
                 if (!this.analyser || !this.dataArray) return;
@@ -1178,15 +1299,20 @@
             
             selectLanguage(lang) {
                 this.currentLanguage = lang;
-                
+
                 // Update UI
                 document.querySelectorAll('.language-btn').forEach(btn => {
                     btn.classList.remove('active');
                 });
                 document.querySelector(`[data-lang="${lang}"]`).classList.add('active');
-                
+
                 this.updateLanguageDisplay();
-                
+                const voices = this.voiceProfiles[this.currentLanguage] || [];
+                if (voices.length) {
+                    this.selectedVoice = voices[0].id;
+                }
+                this.populateVoiceOptions();
+
                 // Update current meditation with new language
                 if (this.currentMeditation) {
                     this.selectMeditation(this.currentMeditation);
@@ -1220,12 +1346,16 @@
             
             selectNatureSound(sound) {
                 this.selectedNatureSound = sound;
-                
+
                 // Update UI
                 document.querySelectorAll('.nature-sound-btn').forEach(btn => {
                     btn.classList.remove('selected');
                 });
                 document.querySelector(`[data-sound="${sound}"]`).classList.add('selected');
+
+                if (this.isPlaying && this.audioContext) {
+                    this.startNatureSounds();
+                }
             }
             
             updateVolumeDisplays() {
@@ -1262,10 +1392,17 @@
                     this.startTime = Date.now();
                     this.pausedTime = 0;
                     this.currentCuecardIndex = 0;
+                    this.voiceQueue = [];
+                    this.voiceScript = [];
+                    this.currentVoiceSource = null;
+                    this.natureSoundSource = null;
+                    this.natureGainNode = null;
+                    this.binauralGainNodes = [];
+                    this.binauralOscillators = [];
                     this.updateControlButtons();
                     this.updatePlayPauseButton();
                     this.showBreathingAnimation();
-                    
+
                     const meditation = this.meditationScripts[this.currentLanguage][this.currentMeditation];
                     
                     // Create master gain node
@@ -1273,16 +1410,24 @@
                     this.masterGain.gain.setValueAtTime(1.0, this.audioContext.currentTime);
                     this.masterGain.connect(this.analyser);
                     this.analyser.connect(this.audioContext.destination);
-                    
-                    // Setup voice echo effect
+
+                    this.voiceGain = this.audioContext.createGain();
+                    this.voiceGain.gain.setValueAtTime(this.voiceVolume, this.audioContext.currentTime);
+                    this.voiceGain.connect(this.masterGain);
+
+                    // Setup voice ambience effect
                     this.voiceDelayNode = this.audioContext.createDelay(0.5);
+                    this.voiceDelayNode.delayTime.setValueAtTime(0.35, this.audioContext.currentTime);
                     this.voiceEchoGain = this.audioContext.createGain();
-                    this.voiceEchoGain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
-                    
+                    this.voiceEchoGain.gain.setValueAtTime(0.18, this.audioContext.currentTime);
+                    this.voiceGain.connect(this.voiceDelayNode);
+                    this.voiceDelayNode.connect(this.voiceEchoGain);
+                    this.voiceEchoGain.connect(this.masterGain);
+
                     // Start audio components
                     await this.startBinauralBeats(meditation.frequency);
                     await this.startNatureSounds();
-                    await this.startGuidedVoice(meditation.script);
+                    await this.startGuidedVoice(meditation.script, 0);
                     
                     // Start progress tracking
                     this.startProgressTracking();
@@ -1315,13 +1460,13 @@
                 if (this.audioContext) {
                     this.audioContext.suspend();
                 }
-                
+
                 // Pause speech synthesis
-                if ('speechSynthesis' in window) {
+                if (this.useBrowserSpeechFallback && 'speechSynthesis' in window) {
                     speechSynthesis.pause();
                 }
             }
-            
+
             resumeMeditation() {
                 if (!this.isPaused) return;
                 
@@ -1335,12 +1480,12 @@
                 if (this.audioContext) {
                     this.audioContext.resume();
                 }
-                
+
                 // Resume speech synthesis
-                if ('speechSynthesis' in window) {
+                if (this.useBrowserSpeechFallback && 'speechSynthesis' in window) {
                     speechSynthesis.resume();
                 }
-                
+
                 // Restart progress tracking
                 this.startProgressTracking();
                 
@@ -1355,21 +1500,48 @@
                 this.updatePlayPauseButton();
                 this.hideBreathingAnimation();
                 this.resetCuecard();
-                
+
+                this.stopVoicePlayback();
+
+                if (this.audioContext) {
+                    if (this.natureSoundSource && this.natureGainNode) {
+                        this.fadeOutAndStop(this.natureSoundSource, this.natureGainNode);
+                    }
+                    this.natureSoundSource = null;
+                    this.natureGainNode = null;
+
+                    if (this.binauralOscillators.length) {
+                        this.binauralOscillators.forEach(osc => {
+                            try {
+                                osc.stop();
+                            } catch (error) {
+                                // ignore
+                            }
+                            try {
+                                osc.disconnect();
+                            } catch (error) {
+                                // ignore
+                            }
+                        });
+                        this.binauralOscillators = [];
+                    }
+                    this.binauralGainNodes = [];
+                }
+
                 if (this.audioContext) {
                     this.audioContext.close();
                     this.audioContext = null;
                 }
-                
-                // Stop speech synthesis
-                if ('speechSynthesis' in window) {
-                    speechSynthesis.cancel();
-                }
-                
-                // Clear speech timeouts
-                this.speechTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
-                this.speechTimeouts = [];
-                
+
+                this.voiceGain = null;
+                this.voiceDelayNode = null;
+                this.voiceEchoGain = null;
+                this.voiceQueue = [];
+                this.voiceScript = [];
+                this.currentVoiceSource = null;
+                this.useBrowserSpeechFallback = false;
+                this.activeVoiceRequestId = 0;
+
                 // Reset visualizer
                 this.visualizerBars.forEach(bar => {
                     bar.style.height = '0px';
@@ -1436,71 +1608,29 @@
             }
             
             previousCuecard() {
-                if (this.currentCuecardIndex > 0) {
-                    this.currentCuecardIndex--;
-                    const meditation = this.meditationScripts[this.currentLanguage][this.currentMeditation];
-                    const text = meditation.script[this.currentCuecardIndex];
-                    this.updateCuecard(text);
-                    
-                    // Stop current speech and speak the new cuecard
-                    this.speakCuecard(text);
+                if (this.currentCuecardIndex <= 0) return;
+
+                const targetIndex = this.currentCuecardIndex - 1;
+
+                if (this.useBrowserSpeechFallback) {
+                    this.scheduleSpeechSynthesisFrom(targetIndex);
+                } else if (this.voiceQueue.length) {
+                    this.playVoiceBufferAtIndex(targetIndex);
                 }
             }
-            
+
             nextCuecard() {
                 const meditation = this.meditationScripts[this.currentLanguage][this.currentMeditation];
-                if (this.currentCuecardIndex < meditation.script.length - 1) {
-                    this.currentCuecardIndex++;
-                    const text = meditation.script[this.currentCuecardIndex];
-                    this.updateCuecard(text);
-                    
-                    // Stop current speech and speak the new cuecard
-                    this.speakCuecard(text);
-                }
-            }
-            
-            speakCuecard(text) {
-                if (!this.isPlaying || !this.audioContext) return;
-                
-                // Stop any ongoing speech
-                if ('speechSynthesis' in window) {
-                    speechSynthesis.cancel();
-                }
-                
-                // Clear any scheduled timeouts
-                this.speechTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
-                this.speechTimeouts = [];
-                
-                // Create utterance with enhanced settings
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.rate = 0.5; // Much slower
-                utterance.pitch = 0.9; // Slightly lower pitch
-                utterance.volume = this.voiceVolume * 0.6; // Softer
-                
-                // Set language
-                const langMap = {
-                    en: 'en-US',
-                    de: 'de-DE',
-                    nl: 'nl-NL',
-                    af: 'af-ZA',
-                    pl: 'pl-PL'
-                };
-                utterance.lang = langMap[this.currentLanguage];
-                
-                // Try to find a female voice
-                const voices = speechSynthesis.getVoices();
-                const matchingVoice = voices.find(voice => 
-                    voice.lang.startsWith(this.currentLanguage) && 
-                    (voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Karen') || voice.name.includes('Google'))
-                );
-                
-                if (matchingVoice) {
-                    utterance.voice = matchingVoice;
-                }
-                
-                // Speak the utterance
-                if ('speechSynthesis' in window) {
-                    speechSynthesis.speak(utterance);
+                if (!meditation) return;
+
+                const targetIndex = Math.min(this.currentCuecardIndex + 1, meditation.script.length - 1);
+
+                if (targetIndex === this.currentCuecardIndex) return;
+
+                if (this.useBrowserSpeechFallback) {
+                    this.scheduleSpeechSynthesisFrom(targetIndex);
+                } else if (this.voiceQueue.length) {
+                    this.playVoiceBufferAtIndex(targetIndex);
                 }
             }
             
@@ -1550,13 +1680,25 @@
             
             async startBinauralBeats(frequency) {
                 if (!this.audioContext) return;
-                
+
                 const freqMatch = frequency.match(/(\d+)-(\d+)/);
                 if (!freqMatch) return;
-                
+
+                if (this.binauralOscillators.length) {
+                    this.binauralOscillators.forEach(osc => {
+                        try {
+                            osc.stop();
+                        } catch (err) {
+                            // ignore
+                        }
+                        osc.disconnect();
+                    });
+                    this.binauralOscillators = [];
+                }
+
                 const leftFreq = parseFloat(freqMatch[1]);
                 const rightFreq = parseFloat(freqMatch[2]);
-                
+
                 const leftOscillator = this.audioContext.createOscillator();
                 const rightOscillator = this.audioContext.createOscillator();
                 
@@ -1591,81 +1733,400 @@
                 delay.connect(delayGain);
                 delayGain.connect(merger, 0, 0);
                 delayGain.connect(merger, 0, 1);
-                
+
                 merger.connect(this.masterGain);
-                
+
                 leftOscillator.start();
                 rightOscillator.start();
-                
+
                 this.binauralOscillators = [leftOscillator, rightOscillator];
+                this.binauralGainNodes = [leftGain, rightGain];
             }
-            
+
             async startNatureSounds() {
                 if (!this.audioContext) return;
-                
-                const bufferSize = 2 * this.audioContext.sampleRate;
-                const noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
-                const output = noiseBuffer.getChannelData(0);
-                
-                for (let i = 0; i < bufferSize; i++) {
-                    switch (this.selectedNatureSound) {
-                        case 'rain':
-                            output[i] = (Math.random() * 2 - 1) * 0.1;
-                            break;
-                        case 'ocean':
-                            output[i] = Math.sin(i * 0.01) * (Math.random() * 2 - 1) * 0.15;
-                            break;
-                        case 'forest':
-                            output[i] = (Math.random() * 2 - 1) * 0.05 + Math.sin(i * 0.005) * 0.02;
-                            break;
-                        case 'birds':
-                            output[i] = (Math.random() * 2 - 1) * 0.03 + Math.sin(i * 0.1) * 0.1 * Math.sin(i * 0.001);
-                            break;
-                    }
+
+                const previousSource = this.natureSoundSource;
+                const previousGain = this.natureGainNode;
+
+                if (previousSource && previousGain) {
+                    this.fadeOutAndStop(previousSource, previousGain);
                 }
-                
-                const whiteNoise = this.audioContext.createBufferSource();
-                whiteNoise.buffer = noiseBuffer;
-                whiteNoise.loop = true;
-                
-                const filter = this.audioContext.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.setValueAtTime(1000, this.audioContext.currentTime);
-                
-                const natureGain = this.audioContext.createGain();
-                // Increased volume for nature sounds to make them audible
-                natureGain.gain.setValueAtTime(this.natureVolume * 1.5, this.audioContext.currentTime);
-                
-                whiteNoise.connect(filter);
-                filter.connect(natureGain);
-                natureGain.connect(this.masterGain);
-                
-                whiteNoise.start();
-                
-                this.natureSoundSource = whiteNoise;
+
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.setValueAtTime(this.natureVolume, this.audioContext.currentTime);
+
+                let buffer = null;
+                try {
+                    buffer = await this.ensureNatureBuffer(this.selectedNatureSound);
+                } catch (error) {
+                    console.warn('Falling back to generated nature ambience:', error);
+                }
+
+                if (!buffer) {
+                    buffer = this.generateAmbientNature(this.selectedNatureSound);
+                }
+
+                if (!buffer) return;
+
+                const source = this.audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.loop = true;
+                source.connect(gainNode);
+                gainNode.connect(this.masterGain);
+
+                source.start();
+
+                this.natureSoundSource = source;
+                this.natureGainNode = gainNode;
             }
-            
-            async startGuidedVoice(script) {
+
+            async startGuidedVoice(script, startIndex = 0) {
                 if (!this.audioContext) return;
-                
-                // Clear any existing timeouts
+
+                const safeIndex = Math.max(0, Math.min(startIndex, script.length ? script.length - 1 : 0));
+
+                this.voiceScript = Array.isArray(script) ? [...script] : [];
+                this.stopVoicePlayback();
+
+                if (!this.voiceScript.length) return;
+
+                const requestId = Date.now();
+                this.activeVoiceRequestId = requestId;
+
+                try {
+                    const buffers = await this.prepareVoiceBuffers(this.voiceScript);
+                    if (this.activeVoiceRequestId !== requestId) {
+                        return;
+                    }
+                    this.voiceQueue = buffers;
+                    this.useBrowserSpeechFallback = false;
+                    this.playVoiceBufferAtIndex(safeIndex);
+                } catch (error) {
+                    if (this.activeVoiceRequestId !== requestId) {
+                        return;
+                    }
+                    console.warn('Guided voice API unavailable, using browser speech synthesis.', error);
+                    this.useBrowserSpeechFallback = true;
+                    this.voiceQueue = [];
+                    this.scheduleSpeechSynthesisFrom(safeIndex);
+                }
+            }
+
+            async prepareVoiceBuffers(script) {
+                const voices = this.voiceProfiles[this.currentLanguage] || [];
+                const voiceId = this.selectedVoice || (voices.length ? voices[0].id : null);
+
+                if (!voiceId) {
+                    throw new Error('No guided voice available for the selected language.');
+                }
+
+                const results = await Promise.allSettled(
+                    script.map(text => this.fetchVoiceAudio(text, voiceId))
+                );
+
+                const failure = results.find(result => result.status !== 'fulfilled');
+                if (failure) {
+                    throw failure.reason || new Error('Unable to prepare guided voice audio.');
+                }
+
+                const buffers = results.map(result => result.value);
+                if (!buffers.length) {
+                    throw new Error('Guided voice response did not include audio.');
+                }
+
+                return buffers;
+            }
+
+            async fetchVoiceAudio(text, voiceId) {
+                if (!this.audioContext) {
+                    throw new Error('Audio context is not initialized.');
+                }
+
+                const cacheKey = `${voiceId}|${this.currentLanguage}|${text}`;
+                let audioData = this.voiceClipCache.get(cacheKey);
+
+                if (!audioData) {
+                    const requestUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${encodeURIComponent(voiceId)}&text=${encodeURIComponent(text)}`;
+                    const response = await fetch(requestUrl);
+                    if (!response.ok) {
+                        throw new Error(`Voice request failed with status ${response.status}`);
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    audioData = arrayBuffer.slice(0);
+                    this.voiceClipCache.set(cacheKey, audioData);
+                }
+
+                return await this.decodeAudioData(audioData.slice(0));
+            }
+
+            decodeAudioData(arrayBuffer) {
+                return new Promise((resolve, reject) => {
+                    this.audioContext.decodeAudioData(arrayBuffer, resolve, reject);
+                });
+            }
+
+            playVoiceBufferAtIndex(index) {
+                if (!this.audioContext || !this.voiceQueue.length) return;
+                if (index < 0 || index >= this.voiceQueue.length) return;
+
+                this.stopCurrentVoiceSource();
+
+                const source = this.audioContext.createBufferSource();
+                source.buffer = this.voiceQueue[index];
+                const targetNode = this.voiceGain || this.masterGain;
+                source.connect(targetNode);
+                source.start();
+
+                this.currentVoiceSource = source;
+                this.currentCuecardIndex = index;
+                this.updateCuecard(this.voiceScript[index]);
+
+                source.onended = () => {
+                    if (!this.isPlaying || this.currentVoiceSource !== source) return;
+                    const nextIndex = index + 1;
+                    if (nextIndex < this.voiceQueue.length) {
+                        this.playVoiceBufferAtIndex(nextIndex);
+                    }
+                };
+            }
+
+            stopCurrentVoiceSource() {
+                if (!this.currentVoiceSource) return;
+
+                try {
+                    this.currentVoiceSource.onended = null;
+                    this.currentVoiceSource.stop();
+                } catch (error) {
+                    // Ignore if already stopped
+                }
+
+                try {
+                    this.currentVoiceSource.disconnect();
+                } catch (error) {
+                    // Ignore disconnect errors
+                }
+
+                this.currentVoiceSource = null;
+            }
+
+            stopVoicePlayback() {
+                this.stopCurrentVoiceSource();
+
+                if ('speechSynthesis' in window) {
+                    speechSynthesis.cancel();
+                }
+
                 this.speechTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
                 this.speechTimeouts = [];
-                
-                if ('speechSynthesis' in window) {
-                    let delay = 0;
-                    script.forEach((text, index) => {
-                        const timeoutId = setTimeout(() => {
-                            if (this.isPlaying) {
-                                this.currentCuecardIndex = index;
-                                this.updateCuecard(text);
-                                this.speakCuecard(text);
-                            }
-                        }, delay);
-                        this.speechTimeouts.push(timeoutId);
-                        delay += 8000; // 8 seconds between phrases
-                    });
+            }
+
+            scheduleSpeechSynthesisFrom(startIndex = 0) {
+                if (!('speechSynthesis' in window) || !this.voiceScript.length) return;
+
+                this.stopVoicePlayback();
+                this.useBrowserSpeechFallback = true;
+
+                const safeIndex = Math.max(0, Math.min(startIndex, this.voiceScript.length - 1));
+                const baseDelay = 8000;
+                const firstText = this.voiceScript[safeIndex];
+                this.currentCuecardIndex = safeIndex;
+                this.updateCuecard(firstText);
+                this.playSpeechUtterance(firstText);
+
+                for (let i = safeIndex + 1; i < this.voiceScript.length; i++) {
+                    const text = this.voiceScript[i];
+                    const delay = (i - safeIndex) * baseDelay;
+
+                    const timeoutId = setTimeout(() => {
+                        if (!this.isPlaying) return;
+                        this.currentCuecardIndex = i;
+                        this.updateCuecard(text);
+                        this.playSpeechUtterance(text);
+                    }, delay);
+
+                    this.speechTimeouts.push(timeoutId);
                 }
+            }
+
+            playSpeechUtterance(text) {
+                if (!('speechSynthesis' in window)) return;
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.65;
+                utterance.pitch = 0.95;
+                utterance.volume = Math.min(this.voiceVolume, 1);
+
+                const langMap = {
+                    en: 'en-US',
+                    de: 'de-DE',
+                    nl: 'nl-NL',
+                    af: 'af-ZA',
+                    pl: 'pl-PL'
+                };
+
+                const langCode = langMap[this.currentLanguage] || 'en-US';
+                utterance.lang = langCode;
+
+                const voices = speechSynthesis.getVoices();
+                const matchingVoice = voices.find(voice =>
+                    voice.lang === langCode || voice.lang.startsWith(langCode.split('-')[0])
+                );
+
+                if (matchingVoice) {
+                    utterance.voice = matchingVoice;
+                }
+
+                speechSynthesis.speak(utterance);
+            }
+
+            async ensureNatureBuffer(type) {
+                if (!this.audioContext) return null;
+
+                if (this.natureBuffers[type]) {
+                    return this.natureBuffers[type];
+                }
+
+                const url = this.natureSoundMap[type];
+                if (!url) {
+                    const generated = this.generateAmbientNature(type);
+                    this.natureBuffers[type] = generated;
+                    return generated;
+                }
+
+                try {
+                    const response = await fetch(url, { cache: 'force-cache' });
+                    if (!response.ok) {
+                        throw new Error(`Failed to load nature ambience (status ${response.status})`);
+                    }
+
+                    const arrayBuffer = await response.arrayBuffer();
+                    const buffer = await this.decodeAudioData(arrayBuffer);
+                    this.natureBuffers[type] = buffer;
+                    return buffer;
+                } catch (error) {
+                    console.warn('Unable to retrieve remote nature loop:', error);
+                    const generated = this.generateAmbientNature(type);
+                    this.natureBuffers[type] = generated;
+                    return generated;
+                }
+            }
+
+            generateAmbientNature(type) {
+                if (!this.audioContext) return null;
+
+                const duration = 60; // seconds
+                const sampleRate = this.audioContext.sampleRate;
+                const channels = 2;
+                const frameCount = duration * sampleRate;
+                const buffer = this.audioContext.createBuffer(channels, frameCount, sampleRate);
+
+                for (let channel = 0; channel < channels; channel++) {
+                    const data = buffer.getChannelData(channel);
+                    let brown = 0;
+                    const drift = channel === 0 ? 0.0003 : -0.0003;
+
+                    for (let i = 0; i < frameCount; i++) {
+                        const white = Math.random() * 2 - 1;
+                        brown = (brown + 0.02 * white) / 1.02;
+                        let value = 0;
+
+                        switch (type) {
+                            case 'ocean': {
+                                const t = i / sampleRate;
+                                const slowSwell = Math.sin(2 * Math.PI * 0.08 * t + drift * i) * 0.5;
+                                const deepWave = Math.sin(2 * Math.PI * 0.18 * t + channel * 0.4) * 0.3;
+                                value = slowSwell + deepWave + brown * 0.4 + (Math.random() * 2 - 1) * 0.05;
+                                break;
+                            }
+                            case 'forest': {
+                                value = brown * 0.35 + (Math.random() * 2 - 1) * 0.05;
+                                break;
+                            }
+                            case 'birds': {
+                                value = brown * 0.2;
+                                break;
+                            }
+                            default: {
+                                value = brown * 0.45 + (Math.random() * 2 - 1) * 0.05;
+                                break;
+                            }
+                        }
+
+                        data[i] = value;
+                    }
+
+                    if (type === 'rain') {
+                        const dropCount = Math.floor(duration * 14);
+                        const dropLength = Math.floor(sampleRate * 0.12);
+                        for (let d = 0; d < dropCount; d++) {
+                            const start = Math.floor(Math.random() * Math.max(1, frameCount - dropLength - 1));
+                            for (let j = 0; j < dropLength; j++) {
+                                const envelope = Math.sin((j / dropLength) * Math.PI);
+                                data[start + j] += envelope * 0.35;
+                            }
+                        }
+                    } else if (type === 'forest' || type === 'birds') {
+                        const chirpCount = Math.floor(duration * (type === 'birds' ? 18 : 8));
+                        for (let c = 0; c < chirpCount; c++) {
+                            const start = Math.floor(Math.random() * Math.max(1, frameCount - sampleRate * 0.25 - 1));
+                            const chirpLength = Math.floor(sampleRate * (0.12 + Math.random() * 0.12));
+                            const frequency = 1200 + Math.random() * 1600;
+                            for (let j = 0; j < chirpLength && start + j < frameCount; j++) {
+                                const envelope = Math.sin((j / chirpLength) * Math.PI) ** 2;
+                                const angle = 2 * Math.PI * frequency * (j / sampleRate);
+                                const intensity = type === 'birds' ? 0.45 : 0.25;
+                                data[start + j] += Math.sin(angle) * envelope * intensity;
+                            }
+                        }
+                    }
+                }
+
+                for (let channel = 0; channel < channels; channel++) {
+                    const data = buffer.getChannelData(channel);
+                    let previous = 0;
+                    for (let i = 0; i < frameCount; i++) {
+                        previous = previous * 0.995 + data[i] * 0.005;
+                        data[i] = previous;
+                    }
+                    for (let i = 0; i < frameCount; i++) {
+                        data[i] = Math.max(-0.9, Math.min(0.9, data[i]));
+                    }
+                }
+
+                return buffer;
+            }
+
+            fadeOutAndStop(source, gainNode) {
+                if (!this.audioContext || !source || !gainNode) return;
+
+                const now = this.audioContext.currentTime;
+                try {
+                    gainNode.gain.cancelScheduledValues(now);
+                    gainNode.gain.setTargetAtTime(0.0001, now, 0.2);
+                } catch (error) {
+                    // Ignore scheduling issues
+                }
+
+                setTimeout(() => {
+                    try {
+                        source.stop();
+                    } catch (error) {
+                        // Ignore if already stopped
+                    }
+
+                    try {
+                        source.disconnect();
+                    } catch (error) {
+                        // Ignore disconnect errors
+                    }
+
+                    try {
+                        gainNode.disconnect();
+                    } catch (error) {
+                        // Ignore disconnect errors
+                    }
+                }, 400);
             }
         }
         

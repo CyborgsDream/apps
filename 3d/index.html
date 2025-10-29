@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>My 3D Engine Demo</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, sans-serif;
+      background: #000;
+      color: #fff;
+    }
+
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      touch-action: none;
+    }
+
+    .control-btn {
+      position: absolute;
+      opacity: 0.5;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid #fff;
+      box-sizing: border-box;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #gyroPermButton {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    #joystick {
+      bottom: 20px;
+      left: 20px;
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+    }
+
+    #actionBtn {
+      bottom: 40px;
+      right: 20px;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+    }
+
+    @media (hover: hover) {
+      .control-btn {
+        opacity: 0.25;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <button id="gyroPermButton">Enable Motion Control</button>
+
+  <div id="joystick" class="control-btn"></div>
+  <div id="actionBtn" class="control-btn"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

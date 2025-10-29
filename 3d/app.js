@@ -5,6 +5,8 @@ const joystick = document.getElementById('joystick');
 const actionBtn = document.getElementById('actionBtn');
 const gyroPermButton = document.getElementById('gyroPermButton');
 
+const isMobileDevice = /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent);
+
 // --- Renderer & Scene Setup ---
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -14,8 +16,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101018);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.rotation.order = 'YXZ';
 camera.position.set(0, 8, 20);
 camera.lookAt(0, 0, 0);
+
+const initialRotation = camera.rotation.clone();
+
+let camYaw = THREE.MathUtils.radToDeg(initialRotation.y);
+let camPitch = THREE.MathUtils.radToDeg(initialRotation.x);
 
 const ambient = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambient);
@@ -186,8 +194,6 @@ actionBtn.addEventListener('touchcancel', (event) => {
 });
 
 // Swipe / drag camera control
-let camYaw = 0;
-let camPitch = -15;
 let isPointerDown = false;
 let lastPointerX = 0;
 let lastPointerY = 0;
@@ -271,8 +277,12 @@ function adjustCameraAngles(dx, dy) {
 
 // --- Gyroscope Controls ---
 let gyroActive = false;
+let needsGyroCalibration = true;
 let deviceQuat = new THREE.Quaternion();
 let screenOrientation = window.orientation || (screen.orientation ? screen.orientation.angle : 0) || 0;
+const calibrationQuat = new THREE.Quaternion();
+const inverseDeviceQuat = new THREE.Quaternion();
+const targetQuat = new THREE.Quaternion();
 
 const zee = new THREE.Vector3(0, 0, 1);
 const euler = new THREE.Euler();
@@ -287,40 +297,59 @@ function setObjectQuaternion(quaternion, alpha, beta, gamma, orient) {
 }
 
 function handleOrientation(event) {
+  if (!isMobileDevice) {
+    return;
+  }
+  if (event.alpha === null && event.beta === null && event.gamma === null) {
+    return;
+  }
   const alpha = event.alpha !== null ? THREE.MathUtils.degToRad(event.alpha) : 0;
   const beta = event.beta !== null ? THREE.MathUtils.degToRad(event.beta) : 0;
   const gamma = event.gamma !== null ? THREE.MathUtils.degToRad(event.gamma) : 0;
   const orient = THREE.MathUtils.degToRad(screenOrientation || 0);
   setObjectQuaternion(deviceQuat, alpha, beta, gamma, orient);
+  if (needsGyroCalibration) {
+    calibrationQuat.copy(camera.quaternion);
+    inverseDeviceQuat.copy(deviceQuat).invert();
+    calibrationQuat.multiply(inverseDeviceQuat);
+    needsGyroCalibration = false;
+  }
   gyroActive = true;
 }
 
 function startOrientationListener() {
+  needsGyroCalibration = true;
   window.addEventListener('deviceorientation', handleOrientation, true);
 }
 
 function setupGyroscopeAccess() {
-  if ('DeviceOrientationEvent' in window) {
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      gyroPermButton.style.display = 'block';
-      gyroPermButton.addEventListener('click', async () => {
-        try {
-          const response = await DeviceOrientationEvent.requestPermission();
-          if (response === 'granted') {
-            startOrientationListener();
-          } else {
-            console.warn('Device orientation permission denied');
-          }
-        } catch (error) {
-          console.warn('Device orientation permission error', error);
-        } finally {
-          gyroPermButton.style.display = 'none';
-        }
-      }, { once: true });
-    } else {
-      startOrientationListener();
-    }
+  if (!isMobileDevice || !('DeviceOrientationEvent' in window)) {
+    return;
   }
+
+  const enableGyro = async () => {
+    gyroPermButton.disabled = true;
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const response = await DeviceOrientationEvent.requestPermission();
+        if (response !== 'granted') {
+          console.warn('Device orientation permission denied');
+          gyroPermButton.disabled = false;
+          return;
+        }
+      }
+      startOrientationListener();
+      gyroPermButton.style.display = 'none';
+    } catch (error) {
+      console.warn('Device orientation permission error', error);
+      gyroPermButton.disabled = false;
+      return;
+    }
+  };
+
+  gyroPermButton.style.display = 'block';
+  gyroPermButton.disabled = false;
+  gyroPermButton.addEventListener('click', enableGyro);
 }
 
 window.addEventListener('orientationchange', () => {
@@ -371,7 +400,11 @@ function loop(now) {
   requestAnimationFrame(loop);
 
   if (gyroActive) {
-    camera.quaternion.slerp(deviceQuat, 0.1);
+    targetQuat.copy(deviceQuat);
+    if (!needsGyroCalibration) {
+      targetQuat.premultiply(calibrationQuat);
+    }
+    camera.quaternion.slerp(targetQuat, 0.1);
   } else {
     updateCameraRotationFromManual();
   }

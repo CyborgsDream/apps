@@ -191,6 +191,7 @@ let camPitch = -15;
 let isPointerDown = false;
 let lastPointerX = 0;
 let lastPointerY = 0;
+let canvasTouchId = null;
 const pointerSensitivity = 0.2;
 
 canvas.addEventListener('mousedown', (event) => {
@@ -215,24 +216,51 @@ window.addEventListener('mouseup', () => {
 canvas.addEventListener('touchstart', (event) => {
   if (event.target !== canvas) return;
   event.preventDefault();
-  if (event.touches.length === 1) {
-    const touch = event.touches[0];
-    lastPointerX = touch.clientX;
-    lastPointerY = touch.clientY;
+  if (canvasTouchId !== null) return;
+
+  for (const touch of event.changedTouches) {
+    if (touch.target === canvas) {
+      canvasTouchId = touch.identifier;
+      lastPointerX = touch.clientX;
+      lastPointerY = touch.clientY;
+      break;
+    }
   }
 });
 
 canvas.addEventListener('touchmove', (event) => {
-  if (event.target !== canvas || gyroActive) return;
+  if (event.target !== canvas || gyroActive || canvasTouchId === null) return;
   event.preventDefault();
-  if (event.touches.length === 1) {
-    const touch = event.touches[0];
-    const dx = touch.clientX - lastPointerX;
-    const dy = touch.clientY - lastPointerY;
-    lastPointerX = touch.clientX;
-    lastPointerY = touch.clientY;
-    adjustCameraAngles(dx, dy);
+
+  for (const touch of event.changedTouches) {
+    if (touch.identifier === canvasTouchId) {
+      const dx = touch.clientX - lastPointerX;
+      const dy = touch.clientY - lastPointerY;
+      lastPointerX = touch.clientX;
+      lastPointerY = touch.clientY;
+      adjustCameraAngles(dx, dy);
+      break;
+    }
   }
+});
+
+function clearCanvasTouch(touches) {
+  for (const touch of touches) {
+    if (touch.identifier === canvasTouchId) {
+      canvasTouchId = null;
+      break;
+    }
+  }
+}
+
+canvas.addEventListener('touchend', (event) => {
+  if (event.target !== canvas) return;
+  clearCanvasTouch(event.changedTouches);
+});
+
+canvas.addEventListener('touchcancel', (event) => {
+  if (event.target !== canvas) return;
+  clearCanvasTouch(event.changedTouches);
 });
 
 function adjustCameraAngles(dx, dy) {

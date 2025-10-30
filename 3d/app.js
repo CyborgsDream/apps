@@ -290,7 +290,7 @@ function startApp() {
   });
 
   function adjustCameraAngles(dx, dy) {
-    camYaw -= dx * pointerSensitivity;
+    camYaw += dx * pointerSensitivity;
     camPitch -= dy * pointerSensitivity;
     camPitch = Math.max(-89, Math.min(89, camPitch));
   }
@@ -471,8 +471,8 @@ function startApp() {
     }
 
     const yaw = getYawRadians();
-    tmpForward.set(Math.sin(yaw), 0, Math.cos(yaw));
-    tmpRight.copy(tmpForward).applyAxisAngle(upVector, Math.PI / 2);
+    tmpForward.set(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
+    tmpRight.crossVectors(tmpForward, upVector).normalize();
 
     const speed = 5;
     if (keys.ArrowUp) {

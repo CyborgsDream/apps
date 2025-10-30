@@ -22,31 +22,57 @@
       touch-action: none;
     }
 
-    .hud-panel {
+    #uiLayout {
       position: absolute;
-      padding: 0.4rem 0.7rem;
-      border-radius: 0.5rem;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      pointer-events: none;
+      gap: 1rem;
+    }
+
+    .ui-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      pointer-events: none;
+    }
+
+    .ui-row-bottom {
+      justify-content: center;
+      align-items: flex-end;
+    }
+
+    .hud-panel {
+      padding: 0.45rem 0.8rem;
+      border-radius: 0.6rem;
       background: rgba(0, 0, 0, 0.55);
       border: 1px solid rgba(255, 255, 255, 0.3);
       color: #fff;
       font-size: 0.85rem;
-      line-height: 1.2;
+      line-height: 1.25;
       user-select: none;
-      pointer-events: none;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      backdrop-filter: blur(4px);
     }
 
     #fpsCounter {
-      top: 10px;
-      left: 10px;
+      pointer-events: none;
+      font-variant-numeric: tabular-nums;
+      min-width: 120px;
+      justify-content: center;
     }
 
     #resolutionPanel {
-      top: 10px;
-      right: 10px;
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      pointer-events: auto;
+      flex-wrap: wrap;
+      justify-content: center;
     }
 
     #resolutionPanel label {
@@ -67,38 +93,121 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .hud-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 10rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 0.6rem;
+      background: linear-gradient(135deg, rgba(40, 40, 60, 0.8), rgba(80, 80, 120, 0.65));
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: none;
+      cursor: pointer;
+      transition: background 0.3s ease, transform 0.2s ease, border-color 0.3s ease;
+      pointer-events: auto;
+      backdrop-filter: blur(6px);
+    }
+
+    .hud-button:hover {
+      background: linear-gradient(135deg, rgba(70, 70, 110, 0.95), rgba(120, 120, 170, 0.75));
+      border-color: rgba(255, 255, 255, 0.55);
+    }
+
+    .hud-button:active {
+      transform: scale(0.97);
+    }
+
     #gyroPermButton {
       display: none;
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 0.5rem 1rem;
-      border-radius: 0.5rem;
-      background: rgba(0, 0, 0, 0.6);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.7);
-      cursor: pointer;
-      z-index: 10;
+    }
+
+    body.portrait #uiLayout {
+      padding: 0.9rem 1rem 1.3rem;
+      gap: 1.25rem;
+    }
+
+    body.portrait .ui-row {
+      width: 100%;
+    }
+
+    body.portrait .ui-row-top {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+
+    body.portrait #fpsCounter {
+      align-self: center;
+      min-width: auto;
+      width: min(220px, 80vw);
+    }
+
+    body.portrait #resolutionPanel {
+      width: 100%;
+      flex-direction: column;
+      align-items: stretch;
+      text-align: center;
+      gap: 0.4rem;
+    }
+
+    body.portrait #resolutionPanel select {
+      width: 100%;
+    }
+
+    body.portrait #resolutionInfo {
+      align-self: center;
+    }
+
+    body.portrait .ui-row-bottom {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.6rem;
+    }
+
+    body.portrait .hud-button {
+      width: 100%;
+      min-width: 0;
+    }
+
+    @media (orientation: landscape) and (min-width: 768px) {
+      .ui-row-bottom {
+        justify-content: flex-end;
+      }
+
+      #resolutionPanel {
+        justify-content: flex-end;
+      }
     }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
 
-  <div id="fpsCounter" class="hud-panel">FPS: --</div>
+  <div id="uiLayout">
+    <div class="ui-row ui-row-top">
+      <div id="fpsCounter" class="hud-panel">FPS: --</div>
 
-  <div id="resolutionPanel" class="hud-panel">
-    <label for="resolutionSelect">Resolution:</label>
-    <select id="resolutionSelect">
-      <option value="1">High (100%)</option>
-      <option value="0.75">Medium (75%)</option>
-      <option value="0.5">Low (50%)</option>
-    </select>
-    <div id="resolutionInfo">-- × --</div>
+      <div id="resolutionPanel" class="hud-panel">
+        <label for="resolutionSelect">Resolution:</label>
+        <select id="resolutionSelect">
+          <option value="1">High (100%)</option>
+          <option value="0.75">Medium (75%)</option>
+          <option value="0.5">Low (50%)</option>
+        </select>
+        <div id="resolutionInfo">-- × --</div>
+      </div>
+    </div>
+
+    <div class="ui-row ui-row-bottom">
+      <button id="gyroPermButton" class="hud-button">Enable Motion Control</button>
+      <button id="fullscreenButton" class="hud-button">Enter Fullscreen</button>
+    </div>
   </div>
-
-  <button id="gyroPermButton">Enable Motion Control</button>
 
   <script type="module" src="app.js"></script>
 </body>

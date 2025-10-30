@@ -1,8 +1,9 @@
 import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
 
 const canvas = document.getElementById('gameCanvas');
-const joystick = document.getElementById('joystick');
-const actionBtn = document.getElementById('actionBtn');
+const fpsCounter = document.getElementById('fpsCounter');
+const resolutionInfo = document.getElementById('resolutionInfo');
+const resolutionSelect = document.getElementById('resolutionSelect');
 const gyroPermButton = document.getElementById('gyroPermButton');
 
 const isMobileDevice = /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent);
@@ -11,6 +12,9 @@ const isMobileDevice = /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x000000, 1);
+
+let resolutionScale = parseFloat(resolutionSelect?.value) || 1;
+const rendererSize = new THREE.Vector2();
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101018);
@@ -37,7 +41,7 @@ const planeSize = 100;
 const planeSegments = 100;
 const groundGeometry = new THREE.PlaneGeometry(planeSize, planeSize, planeSegments, planeSegments);
 groundGeometry.rotateX(-Math.PI / 2);
-const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x204030, roughness: 0.8, metalness: 0.1 });
+const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x33aa77, wireframe: true });
 const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
@@ -102,94 +106,6 @@ window.addEventListener('keyup', (event) => {
   if (event.code in keys) {
     keys[event.code] = false;
     event.preventDefault();
-  }
-});
-
-// Virtual joystick state
-let moveX = 0;
-let moveY = 0;
-let joystickTouchId = null;
-
-function resetJoystick() {
-  moveX = 0;
-  moveY = 0;
-  joystickTouchId = null;
-}
-
-joystick.addEventListener('touchstart', (event) => {
-  event.preventDefault();
-  if (joystickTouchId !== null) return;
-  const touch = event.changedTouches[0];
-  joystickTouchId = touch.identifier;
-});
-
-joystick.addEventListener('touchmove', (event) => {
-  event.preventDefault();
-  if (joystickTouchId === null) return;
-  for (const touch of event.changedTouches) {
-    if (touch.identifier === joystickTouchId) {
-      const rect = joystick.getBoundingClientRect();
-      const x = touch.clientX - rect.left - rect.width / 2;
-      const y = touch.clientY - rect.top - rect.height / 2;
-      const max = rect.width / 2;
-      moveX = Math.max(-1, Math.min(1, x / max));
-      moveY = Math.max(-1, Math.min(1, y / max));
-      break;
-    }
-  }
-});
-
-joystick.addEventListener('touchend', (event) => {
-  event.preventDefault();
-  for (const touch of event.changedTouches) {
-    if (touch.identifier === joystickTouchId) {
-      resetJoystick();
-      break;
-    }
-  }
-});
-
-joystick.addEventListener('touchcancel', (event) => {
-  event.preventDefault();
-  for (const touch of event.changedTouches) {
-    if (touch.identifier === joystickTouchId) {
-      resetJoystick();
-      break;
-    }
-  }
-});
-
-// Action button
-let actionActive = false;
-let actionTouchId = null;
-
-actionBtn.addEventListener('touchstart', (event) => {
-  event.preventDefault();
-  if (actionTouchId !== null) return;
-  const touch = event.changedTouches[0];
-  actionTouchId = touch.identifier;
-  actionActive = true;
-});
-
-actionBtn.addEventListener('touchend', (event) => {
-  event.preventDefault();
-  for (const touch of event.changedTouches) {
-    if (touch.identifier === actionTouchId) {
-      actionTouchId = null;
-      actionActive = false;
-      break;
-    }
-  }
-});
-
-actionBtn.addEventListener('touchcancel', (event) => {
-  event.preventDefault();
-  for (const touch of event.changedTouches) {
-    if (touch.identifier === actionTouchId) {
-      actionTouchId = null;
-      actionActive = false;
-      break;
-    }
   }
 });
 
@@ -383,21 +299,52 @@ window.addEventListener('resize', tuneRendererSize);
 function tuneRendererSize() {
   const width = window.innerWidth;
   const height = window.innerHeight;
-  renderer.setSize(width, height, false);
+  const targetWidth = Math.max(1, Math.round(width * resolutionScale));
+  const targetHeight = Math.max(1, Math.round(height * resolutionScale));
+  renderer.setSize(targetWidth, targetHeight, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  updateResolutionInfo();
 }
 
 tuneRendererSize();
 
+function updateResolutionInfo() {
+  if (!resolutionInfo) {
+    return;
+  }
+  renderer.getSize(rendererSize);
+  const displayWidth = Math.round(rendererSize.x);
+  const displayHeight = Math.round(rendererSize.y);
+  const percentage = Math.round(resolutionScale * 100);
+  resolutionInfo.textContent = `${displayWidth} × ${displayHeight} (${percentage}%)`;
+}
+
+if (resolutionSelect) {
+  resolutionSelect.addEventListener('change', () => {
+    resolutionScale = parseFloat(resolutionSelect.value) || 1;
+    tuneRendererSize();
+  });
+}
+
+updateResolutionInfo();
+
 // --- Animation Loop ---
 let lastTime = performance.now();
+let smoothedFps = 0;
+const fpsSmoothingFactor = 0.1;
 
 function loop(now) {
   const delta = (now - lastTime) / 1000;
   lastTime = now;
 
   requestAnimationFrame(loop);
+
+  if (delta > 0 && fpsCounter) {
+    const currentFps = 1 / delta;
+    smoothedFps = smoothedFps ? THREE.MathUtils.lerp(smoothedFps, currentFps, fpsSmoothingFactor) : currentFps;
+    fpsCounter.textContent = `FPS: ${smoothedFps.toFixed(1)}`;
+  }
 
   if (gyroActive) {
     targetQuat.copy(deviceQuat);
@@ -414,31 +361,31 @@ function loop(now) {
   tmpRight.copy(tmpForward).applyAxisAngle(upVector, Math.PI / 2);
 
   const speed = 5;
-  if (keys.ArrowUp || moveY < -0.3) {
+  if (keys.ArrowUp) {
     camera.position.addScaledVector(tmpForward, speed * delta);
   }
-  if (keys.ArrowDown || moveY > 0.3) {
+  if (keys.ArrowDown) {
     camera.position.addScaledVector(tmpForward, -speed * delta);
   }
 
   if (gyroActive) {
-    if (keys.ArrowLeft || moveX < -0.3) {
+    if (keys.ArrowLeft) {
       camera.position.addScaledVector(tmpRight, -speed * delta);
     }
-    if (keys.ArrowRight || moveX > 0.3) {
+    if (keys.ArrowRight) {
       camera.position.addScaledVector(tmpRight, speed * delta);
     }
   } else {
     const turnSpeed = 90 * delta;
-    if (keys.ArrowLeft || moveX < -0.3) {
+    if (keys.ArrowLeft) {
       camYaw += turnSpeed;
     }
-    if (keys.ArrowRight || moveX > 0.3) {
+    if (keys.ArrowRight) {
       camYaw -= turnSpeed;
     }
   }
 
-  if (keys.Space || actionActive) {
+  if (keys.Space) {
     // Placeholder for jump/shoot action
   }
 

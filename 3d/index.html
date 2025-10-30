@@ -22,14 +22,49 @@
       touch-action: none;
     }
 
-    .control-btn {
+    .hud-panel {
       position: absolute;
-      opacity: 0.5;
-      background: rgba(255, 255, 255, 0.1);
-      border: 2px solid #fff;
-      box-sizing: border-box;
-      touch-action: none;
+      padding: 0.4rem 0.7rem;
+      border-radius: 0.5rem;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      font-size: 0.85rem;
+      line-height: 1.2;
       user-select: none;
+      pointer-events: none;
+    }
+
+    #fpsCounter {
+      top: 10px;
+      left: 10px;
+    }
+
+    #resolutionPanel {
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      pointer-events: auto;
+    }
+
+    #resolutionPanel label {
+      font-weight: 600;
+    }
+
+    #resolutionPanel select {
+      background: rgba(15, 15, 30, 0.8);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 0.4rem;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    #resolutionInfo {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
 
     #gyroPermButton {
@@ -46,37 +81,24 @@
       cursor: pointer;
       z-index: 10;
     }
-
-    #joystick {
-      bottom: 20px;
-      left: 20px;
-      width: 110px;
-      height: 110px;
-      border-radius: 50%;
-    }
-
-    #actionBtn {
-      bottom: 40px;
-      right: 20px;
-      width: 70px;
-      height: 70px;
-      border-radius: 50%;
-    }
-
-    @media (hover: hover) {
-      .control-btn {
-        opacity: 0.25;
-      }
-    }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
 
-  <button id="gyroPermButton">Enable Motion Control</button>
+  <div id="fpsCounter" class="hud-panel">FPS: --</div>
 
-  <div id="joystick" class="control-btn"></div>
-  <div id="actionBtn" class="control-btn"></div>
+  <div id="resolutionPanel" class="hud-panel">
+    <label for="resolutionSelect">Resolution:</label>
+    <select id="resolutionSelect">
+      <option value="1">High (100%)</option>
+      <option value="0.75">Medium (75%)</option>
+      <option value="0.5">Low (50%)</option>
+    </select>
+    <div id="resolutionInfo">-- × --</div>
+  </div>
+
+  <button id="gyroPermButton">Enable Motion Control</button>
 
   <script type="module" src="app.js"></script>
 </body>

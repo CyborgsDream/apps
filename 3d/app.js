@@ -11,8 +11,106 @@ function startApp() {
   const resolutionInfo = document.getElementById('resolutionInfo');
   const resolutionSelect = document.getElementById('resolutionSelect');
   const gyroPermButton = document.getElementById('gyroPermButton');
+  const fullscreenButton = document.getElementById('fullscreenButton');
 
   const isMobileDevice = /Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent);
+  const orientationMedia = typeof window.matchMedia === 'function' ? window.matchMedia('(orientation: portrait)') : null;
+
+  function applyOrientationClass() {
+    if (!document || !document.body) {
+      return;
+    }
+    const isPortrait = orientationMedia ? orientationMedia.matches : window.innerHeight >= window.innerWidth;
+    document.body.classList.toggle('portrait', isPortrait);
+    document.body.classList.toggle('landscape', !isPortrait);
+  }
+
+  function handleResizeEvents() {
+    tuneRendererSize();
+    applyOrientationClass();
+  }
+
+  if (orientationMedia) {
+    const orientationListener = () => {
+      applyOrientationClass();
+    };
+    if (typeof orientationMedia.addEventListener === 'function') {
+      orientationMedia.addEventListener('change', orientationListener);
+    } else if (typeof orientationMedia.addListener === 'function') {
+      orientationMedia.addListener(orientationListener);
+    }
+  }
+
+  applyOrientationClass();
+
+  function isFullscreenActive() {
+    return Boolean(
+      document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement,
+    );
+  }
+
+  function requestAppFullscreen() {
+    const element = document.documentElement;
+    if (element.requestFullscreen) {
+      return element.requestFullscreen();
+    }
+    if (element.webkitRequestFullscreen) {
+      return element.webkitRequestFullscreen();
+    }
+    if (element.mozRequestFullScreen) {
+      return element.mozRequestFullScreen();
+    }
+    if (element.msRequestFullscreen) {
+      return element.msRequestFullscreen();
+    }
+    return Promise.reject(new Error('Fullscreen API is not supported'));
+  }
+
+  function exitAppFullscreen() {
+    if (document.exitFullscreen) {
+      return document.exitFullscreen();
+    }
+    if (document.webkitExitFullscreen) {
+      return document.webkitExitFullscreen();
+    }
+    if (document.mozCancelFullScreen) {
+      return document.mozCancelFullScreen();
+    }
+    if (document.msExitFullscreen) {
+      return document.msExitFullscreen();
+    }
+    return Promise.resolve();
+  }
+
+  function updateFullscreenButtonLabel() {
+    if (!fullscreenButton) {
+      return;
+    }
+    fullscreenButton.textContent = isFullscreenActive() ? 'Exit Fullscreen' : 'Enter Fullscreen';
+  }
+
+  if (fullscreenButton) {
+    updateFullscreenButtonLabel();
+    fullscreenButton.addEventListener('click', () => {
+      if (isFullscreenActive()) {
+        Promise.resolve(exitAppFullscreen()).catch((error) => {
+          console.warn('Unable to exit fullscreen', error);
+        });
+      } else {
+        Promise.resolve(requestAppFullscreen()).catch((error) => {
+          console.warn('Unable to enter fullscreen', error);
+        });
+      }
+    });
+
+    const fullscreenEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'];
+    fullscreenEvents.forEach((eventName) => {
+      document.addEventListener(eventName, updateFullscreenButtonLabel);
+    });
+  }
 
   // --- Renderer & Scene Setup ---
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -269,14 +367,24 @@ function startApp() {
       }
     };
 
-    gyroPermButton.style.display = 'block';
+    gyroPermButton.style.display = 'flex';
     gyroPermButton.disabled = false;
     gyroPermButton.addEventListener('click', enableGyro);
   }
 
   window.addEventListener('orientationchange', () => {
     screenOrientation = window.orientation || (screen.orientation ? screen.orientation.angle : 0) || 0;
+    needsGyroCalibration = true;
+    handleResizeEvents();
   });
+
+  if (typeof screen !== 'undefined' && screen.orientation && typeof screen.orientation.addEventListener === 'function') {
+    screen.orientation.addEventListener('change', () => {
+      screenOrientation = screen.orientation.angle || 0;
+      needsGyroCalibration = true;
+      handleResizeEvents();
+    });
+  }
 
   setupGyroscopeAccess();
 
@@ -300,7 +408,7 @@ function startApp() {
   }
 
   // --- Resize Handling ---
-  window.addEventListener('resize', tuneRendererSize);
+  window.addEventListener('resize', handleResizeEvents);
 
   function tuneRendererSize() {
     const width = window.innerWidth;
@@ -313,7 +421,7 @@ function startApp() {
     updateResolutionInfo();
   }
 
-  tuneRendererSize();
+  handleResizeEvents();
 
   function updateResolutionInfo() {
     if (!resolutionInfo) {
@@ -329,7 +437,7 @@ function startApp() {
   if (resolutionSelect) {
     resolutionSelect.addEventListener('change', () => {
       resolutionScale = parseFloat(resolutionSelect.value) || 1;
-      tuneRendererSize();
+      handleResizeEvents();
     });
   }
 

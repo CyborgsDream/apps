@@ -2,16 +2,42 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Vector GTA Prototype</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="overlay">
-    <h1>Vector GTA Prototype</h1>
-    <p>WASD / Arrow Keys: move & rotate &bull; Space: sprint toggle &bull; C: switch camera (top-down / third-person) &bull; R: reset player</p>
-  </div>
   <canvas id="game"></canvas>
+
+  <div id="uiLayout">
+    <div class="ui-row ui-row-top">
+      <div id="fpsCounter" class="hud-panel">FPS: --</div>
+
+      <div id="resolutionPanel" class="hud-panel">
+        <label for="resolutionSelect">Resolution:</label>
+        <select id="resolutionSelect">
+          <option value="1">High (100%)</option>
+          <option value="0.75">Medium (75%)</option>
+          <option value="0.5">Low (50%)</option>
+        </select>
+        <div id="resolutionInfo">-- × --</div>
+      </div>
+
+      <div id="instructionsPanel" class="hud-panel">
+        <strong>Controls</strong>
+        <span>WASD / Arrows: move & rotate</span>
+        <span>Space: sprint toggle</span>
+        <span>C: switch camera</span>
+        <span>R: reset player</span>
+      </div>
+    </div>
+
+    <div class="ui-row ui-row-bottom">
+      <button id="gyroPermButton" class="hud-button">Enable Motion Control</button>
+      <button id="fullscreenButton" class="hud-button">Enter Fullscreen</button>
+    </div>
+  </div>
+
   <script type="module" src="main.js"></script>
 </body>
 </html>

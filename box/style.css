@@ -5,42 +5,198 @@
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   background: radial-gradient(circle at top, #1d2b64 0%, #0f172a 50%, #020617 100%);
-  min-height: 100vh;
+  margin: 0;
   overflow: hidden;
   color: #e2e8f0;
+  position: relative;
 }
 
 #game {
   width: 100vw;
   height: 100vh;
   display: block;
+  touch-action: none;
 }
 
-#overlay {
-  position: fixed;
-  top: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.75);
+#uiLayout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  pointer-events: none;
+  gap: 1rem;
+}
+
+.ui-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+
+.ui-row-bottom {
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.hud-panel {
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.6rem;
+  background: rgba(7, 12, 27, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  user-select: none;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   backdrop-filter: blur(4px);
-  padding: 0.75rem 1.5rem;
+}
+
+#fpsCounter {
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+  min-width: 120px;
+  justify-content: center;
+}
+
+#resolutionPanel {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+#resolutionPanel label {
+  font-weight: 600;
+}
+
+#resolutionPanel select {
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
   border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 999px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
-  text-align: center;
-  z-index: 2;
+  border-radius: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.85rem;
 }
 
-#overlay h1 {
-  font-size: 1.2rem;
-  margin-bottom: 0.25rem;
-  letter-spacing: 0.08em;
+#resolutionInfo {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 10rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.6rem;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(59, 130, 246, 0.55));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease, border-color 0.3s ease;
+  pointer-events: auto;
+  backdrop-filter: blur(6px);
+}
+
+.hud-button:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(96, 165, 250, 0.65));
+  border-color: rgba(148, 163, 184, 0.55);
+}
+
+.hud-button:active {
+  transform: scale(0.97);
+}
+
+#gyroPermButton {
+  display: none;
+}
+
+#instructionsPanel {
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 200px;
+  max-width: min(320px, 80vw);
+  gap: 0.3rem;
+}
+
+#instructionsPanel strong {
   text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
 }
 
-#overlay p {
-  font-size: 0.9rem;
-  opacity: 0.85;
+body.portrait #uiLayout {
+  padding: 0.9rem 1rem 1.3rem;
+  gap: 1.25rem;
+}
+
+body.portrait .ui-row {
+  width: 100%;
+}
+
+body.portrait .ui-row-top {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+
+body.portrait #fpsCounter {
+  align-self: center;
+  min-width: auto;
+  width: min(220px, 80vw);
+}
+
+body.portrait #resolutionPanel {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: center;
+  gap: 0.4rem;
+}
+
+body.portrait #resolutionPanel select {
+  width: 100%;
+}
+
+body.portrait #instructionsPanel {
+  align-self: center;
+}
+
+body.portrait .ui-row-bottom {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+
+body.portrait .hud-button {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (orientation: landscape) and (min-width: 768px) {
+  .ui-row-bottom {
+    justify-content: flex-end;
+  }
+
+  #resolutionPanel {
+    justify-content: flex-end;
+  }
 }

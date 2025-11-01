@@ -1,16 +1,138 @@
 import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
 
 const canvas = document.getElementById('game');
+const fpsCounter = document.getElementById('fpsCounter');
+const resolutionInfo = document.getElementById('resolutionInfo');
+const resolutionSelect = document.getElementById('resolutionSelect');
+const fullscreenButton = document.getElementById('fullscreenButton');
+
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = false;
+
+let resolutionScale = parseFloat(resolutionSelect?.value || '1');
+
+function applyOrientationClass() {
+  if (!document?.body) {
+    return;
+  }
+  const isPortrait = window.innerHeight >= window.innerWidth;
+  document.body.classList.toggle('portrait', isPortrait);
+  document.body.classList.toggle('landscape', !isPortrait);
+}
+
+function updateResolutionInfo() {
+  if (!resolutionInfo) {
+    return;
+  }
+  const size = new THREE.Vector2();
+  renderer.getSize(size);
+  const pixelRatio = renderer.getPixelRatio();
+  const width = Math.round(size.x * pixelRatio);
+  const height = Math.round(size.y * pixelRatio);
+  resolutionInfo.textContent = `${width} × ${height}`;
+}
+
+function updateRendererSize() {
+  const { innerWidth, innerHeight, devicePixelRatio } = window;
+  const pixelRatio = Math.min(devicePixelRatio, 2) * Math.max(resolutionScale, 0.25);
+  renderer.setPixelRatio(pixelRatio);
+  renderer.setSize(innerWidth, innerHeight);
+  updateResolutionInfo();
+}
+
+function isFullscreenActive() {
+  return Boolean(
+    document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement,
+  );
+}
+
+function requestAppFullscreen() {
+  const element = document.documentElement;
+  if (element.requestFullscreen) {
+    return element.requestFullscreen();
+  }
+  if (element.webkitRequestFullscreen) {
+    return element.webkitRequestFullscreen();
+  }
+  if (element.mozRequestFullScreen) {
+    return element.mozRequestFullScreen();
+  }
+  if (element.msRequestFullscreen) {
+    return element.msRequestFullscreen();
+  }
+  return Promise.reject(new Error('Fullscreen API is not supported'));
+}
+
+function exitAppFullscreen() {
+  if (document.exitFullscreen) {
+    return document.exitFullscreen();
+  }
+  if (document.webkitExitFullscreen) {
+    return document.webkitExitFullscreen();
+  }
+  if (document.mozCancelFullScreen) {
+    return document.mozCancelFullScreen();
+  }
+  if (document.msExitFullscreen) {
+    return document.msExitFullscreen();
+  }
+  return Promise.resolve();
+}
+
+function updateFullscreenButtonLabel() {
+  if (!fullscreenButton) {
+    return;
+  }
+  fullscreenButton.textContent = isFullscreenActive() ? 'Exit Fullscreen' : 'Enter Fullscreen';
+}
+
+if (fullscreenButton) {
+  updateFullscreenButtonLabel();
+  fullscreenButton.addEventListener('click', () => {
+    if (isFullscreenActive()) {
+      Promise.resolve(exitAppFullscreen()).catch((error) => {
+        console.warn('Unable to exit fullscreen', error);
+      });
+    } else {
+      Promise.resolve(requestAppFullscreen()).catch((error) => {
+        console.warn('Unable to enter fullscreen', error);
+      });
+    }
+  });
+
+  ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((eventName) => {
+    document.addEventListener(eventName, updateFullscreenButtonLabel);
+  });
+}
+
+function handleResolutionChange(event) {
+  const value = parseFloat(event.target.value);
+  if (!Number.isFinite(value) || value <= 0) {
+    return;
+  }
+  resolutionScale = value;
+  updateRendererSize();
+}
+
+if (resolutionSelect) {
+  resolutionSelect.addEventListener('change', handleResolutionChange);
+}
+
+updateRendererSize();
+applyOrientationClass();
+
+window.addEventListener('orientationchange', applyOrientationClass);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b1120);
 scene.fog = new THREE.FogExp2(0x0b1120, 0.002);
 
 const clock = new THREE.Clock();
+let lastFpsUpdate = performance.now();
+let frameCount = 0;
 
 const thirdPersonCamera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4000);
 const topDownCamera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 5, 6000);
@@ -226,15 +348,27 @@ function animate() {
   updateTopDownCamera(delta);
 
   renderer.render(scene, activeCamera);
+
+  if (fpsCounter) {
+    frameCount += 1;
+    const now = performance.now();
+    if (now - lastFpsUpdate >= 500) {
+      const fps = Math.round((frameCount * 1000) / (now - lastFpsUpdate));
+      fpsCounter.textContent = `FPS: ${fps}`;
+      frameCount = 0;
+      lastFpsUpdate = now;
+    }
+  }
 }
 
 animate();
 
 window.addEventListener('resize', () => {
   const { innerWidth, innerHeight } = window;
-  renderer.setSize(innerWidth, innerHeight);
+  updateRendererSize();
   thirdPersonCamera.aspect = innerWidth / innerHeight;
   thirdPersonCamera.updateProjectionMatrix();
   topDownCamera.aspect = innerWidth / innerHeight;
   topDownCamera.updateProjectionMatrix();
+  applyOrientationClass();
 });

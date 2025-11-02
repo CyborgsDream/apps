@@ -369,6 +369,10 @@ function createBridge() {
   return bridgeGroup;
 }
 
+const streetlightLights = [];
+const MAX_ACTIVE_STREETLIGHTS = 12;
+const STREETLIGHT_MAX_DISTANCE = 90;
+
 function createStreetlights() {
   const streetlightGroup = new THREE.Group();
   const poleGeometry = new THREE.CylinderGeometry(0.35, 0.45, 6, 12);
@@ -411,7 +415,12 @@ function createStreetlights() {
 
     const pointLight = new THREE.PointLight(0xfff4c2, 1.4, 30, 2.2);
     pointLight.position.set(0, 0, 0);
+    pointLight.visible = false;
     lamp.add(pointLight);
+    streetlightLights.push({
+      light: pointLight,
+      position: new THREE.Vector3(x, 3, z),
+    });
 
     streetlightGroup.add(pole);
   });
@@ -647,6 +656,22 @@ function updateTransit(delta) {
   }
 }
 
+function updateStreetlightVisibility(origin) {
+  if (streetlightLights.length === 0) {
+    return;
+  }
+
+  streetlightLights.forEach((entry) => {
+    entry.distance = entry.position.distanceTo(origin);
+  });
+
+  streetlightLights.sort((a, b) => a.distance - b.distance);
+
+  streetlightLights.forEach((entry, index) => {
+    entry.light.visible = index < MAX_ACTIVE_STREETLIGHTS && entry.distance <= STREETLIGHT_MAX_DISTANCE;
+  });
+}
+
 updateTransit(0);
 
 const playerMaterial = new THREE.MeshPhongMaterial({ color: 0xfff3b0, flatShading: true });
@@ -856,6 +881,7 @@ function animate() {
   updateTopDownCamera(delta);
   updateIsometricCamera(delta);
   updateTransit(delta);
+  updateStreetlightVisibility(player.position);
 
   renderer.render(scene, activeCamera);
 

@@ -222,6 +222,13 @@ scene.add(player);
 const playerBox = new THREE.Box3().setFromObject(player);
 let yaw = Math.PI;
 let sprint = false;
+let pointerDragging = false;
+let lastPointerPosition = null;
+
+function clampAngle(angle) {
+  const tau = Math.PI * 2;
+  return ((angle % tau) + tau) % tau;
+}
 
 const input = {
   forward: false,
@@ -229,6 +236,10 @@ const input = {
   left: false,
   right: false
 };
+
+function adjustYaw(delta) {
+  yaw = clampAngle(yaw + delta);
+}
 
 function handleKey(event, isDown) {
   switch (event.code) {
@@ -265,6 +276,53 @@ function handleKey(event, isDown) {
 document.addEventListener('keydown', (event) => handleKey(event, true));
 document.addEventListener('keyup', (event) => handleKey(event, false));
 
+function handlePointerMove(event) {
+  if (!pointerDragging || !lastPointerPosition) {
+    return;
+  }
+
+  const dx = event.clientX - lastPointerPosition.x;
+  lastPointerPosition = { x: event.clientX, y: event.clientY };
+
+  if (cameraMode === 'third') {
+    const yawSensitivity = 0.0035;
+    adjustYaw(-dx * yawSensitivity);
+  }
+
+  if (event.pointerType === 'touch') {
+    event.preventDefault();
+  }
+}
+
+if (canvas) {
+  canvas.style.touchAction = 'none';
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (event.isPrimary === false) {
+      return;
+    }
+
+    if (event.pointerType === 'touch') {
+      event.preventDefault();
+    }
+
+    pointerDragging = true;
+    lastPointerPosition = { x: event.clientX, y: event.clientY };
+    canvas.setPointerCapture?.(event.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+
+  const stopDragging = (event) => {
+    pointerDragging = false;
+    lastPointerPosition = null;
+    canvas.releasePointerCapture?.(event.pointerId);
+  };
+
+  canvas.addEventListener('pointerup', stopDragging);
+  canvas.addEventListener('pointercancel', stopDragging);
+}
+
 function resetPlayer() {
   player.position.set(0, 6, 0);
   yaw = Math.PI;
@@ -286,9 +344,9 @@ function updatePlayer(delta) {
   const moveSpeed = sprint ? baseMoveSpeed * 1.7 : baseMoveSpeed;
 
   if (input.left && !input.right) {
-    yaw += rotateSpeed * delta;
+    adjustYaw(rotateSpeed * delta);
   } else if (input.right && !input.left) {
-    yaw -= rotateSpeed * delta;
+    adjustYaw(-rotateSpeed * delta);
   }
 
   player.rotation.y = yaw + Math.PI / 2; // align capsule front
@@ -299,7 +357,7 @@ function updatePlayer(delta) {
   direction.normalize();
 
   if (direction.lengthSq() > 0) {
-    const moveDir = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    const moveDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     const speed = (input.forward ? 1 : -1) * moveSpeed * delta;
     const displacement = moveDir.multiplyScalar(speed);
     attemptMove(displacement);

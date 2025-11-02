@@ -11,10 +11,10 @@ body {
 }
 
 body {
-  background: radial-gradient(circle at top, #1d2b64 0%, #0f172a 50%, #020617 100%);
+  background: radial-gradient(circle at top, #f8fafc 0%, #e0f2ff 45%, #bfdbfe 100%);
   margin: 0;
   overflow: hidden;
-  color: #e2e8f0;
+  color: #0f172a;
   position: relative;
 }
 
@@ -53,9 +53,9 @@ body {
 .hud-panel {
   padding: 0.45rem 0.8rem;
   border-radius: 0.6rem;
-  background: rgba(7, 12, 27, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  color: #0f172a;
   font-size: 0.85rem;
   line-height: 1.4;
   user-select: none;
@@ -63,7 +63,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  backdrop-filter: blur(4px);
+  box-shadow: 0 0.6rem 1.5rem rgba(15, 23, 42, 0.15);
 }
 
 #fpsCounter {
@@ -83,9 +83,9 @@ body {
 }
 
 #resolutionPanel select {
-  background: rgba(15, 23, 42, 0.8);
-  color: #f8fafc;
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.6);
   border-radius: 0.4rem;
   padding: 0.2rem 0.5rem;
   font-size: 0.85rem;
@@ -103,21 +103,20 @@ body {
   min-width: 10rem;
   padding: 0.6rem 1.2rem;
   border-radius: 0.6rem;
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(59, 130, 246, 0.55));
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  color: #f8fafc;
+  background: linear-gradient(135deg, rgba(191, 219, 254, 0.95), rgba(96, 165, 250, 0.75));
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  color: #0f172a;
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: background 0.3s ease, transform 0.2s ease, border-color 0.3s ease;
   pointer-events: auto;
-  backdrop-filter: blur(6px);
 }
 
 .hud-button:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(96, 165, 250, 0.65));
-  border-color: rgba(148, 163, 184, 0.55);
+  background: linear-gradient(135deg, rgba(148, 197, 255, 1), rgba(59, 130, 246, 0.8));
+  border-color: rgba(59, 130, 246, 0.6);
 }
 
 .hud-button:active {

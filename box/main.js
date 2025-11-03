@@ -128,8 +128,8 @@ applyOrientationClass();
 window.addEventListener('orientationchange', applyOrientationClass);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b1120);
-scene.fog = new THREE.FogExp2(0x0b1120, 0.002);
+scene.background = new THREE.Color(0xbfe9ff);
+scene.fog = new THREE.FogExp2(0xdff4ff, 0.0009);
 
 const clock = new THREE.Clock();
 let lastFpsUpdate = performance.now();
@@ -162,12 +162,12 @@ const ROAD_WIDTH = 10;
 
 const roadAreas = [];
 const buildingColliders = [];
-const palette = [0x1f6feb, 0x30a14e, 0xf85149, 0x6f42c1, 0xd29922, 0x0ea5e9, 0x9333ea];
+const palette = [0x4cb6ff, 0x5dd39e, 0xffa53a, 0xff6f91, 0xffd166, 0x8d5dfc, 0x70a0ff];
 
-const ambient = new THREE.HemisphereLight(0x8ba2c9, 0x060a14, 0.6);
+const ambient = new THREE.HemisphereLight(0xfffbf1, 0xd4f1ff, 0.85);
 scene.add(ambient);
 
-const sunLight = new THREE.DirectionalLight(0xf7e3b5, 1.35);
+const sunLight = new THREE.DirectionalLight(0xfff1c9, 1.5);
 sunLight.position.set(120, 240, -140);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
@@ -184,15 +184,15 @@ function createGround() {
   const tileGeometry = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE, 32, 32);
   const position = tileGeometry.attributes.position;
   const colors = [];
-  const baseA = new THREE.Color(0x0a1324);
-  const baseB = new THREE.Color(0x0d1b33);
+  const baseA = new THREE.Color(0xc9f5a6);
+  const baseB = new THREE.Color(0x9be28c);
   const tempColor = new THREE.Color();
 
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i);
     const y = position.getY(i);
     const noise = (Math.sin(x * 0.15) + Math.cos(y * 0.18)) * 0.03;
-    tempColor.copy(baseA).lerp(baseB, 0.55 + noise);
+    tempColor.copy(baseA).lerp(baseB, 0.45 + noise);
     colors.push(tempColor.r, tempColor.g, tempColor.b);
   }
 
@@ -251,9 +251,9 @@ function registerAreaFromMesh(mesh, padding = 4) {
 }
 
 const roadMaterial = new THREE.MeshStandardMaterial({
-  color: 0x1e2b3d,
-  roughness: 0.85,
-  metalness: 0.08,
+  color: 0xd2d8de,
+  roughness: 0.8,
+  metalness: 0.05,
 });
 
 function createRoadSegment(start, end, width) {
@@ -361,14 +361,14 @@ function createTileStructures() {
 
       const colors = [];
       const posAttr = geometry.attributes.position;
-      const colorTop = new THREE.Color(0xf8fafc);
+      const colorTop = new THREE.Color(0xfff8e7);
       const workingColor = new THREE.Color();
       for (let i = 0; i < posAttr.count; i++) {
         const y = posAttr.getY(i) + height / 2;
         const t = y / height;
-        workingColor.copy(baseColor).lerp(colorTop, t * 0.2);
-        workingColor.offsetHSL(0, 0, (t - 0.5) * 0.12);
-        workingColor.multiplyScalar(0.9 + t * 0.2);
+        workingColor.copy(baseColor).lerp(colorTop, t * 0.35);
+        workingColor.offsetHSL(0, 0, (t - 0.5) * 0.18);
+        workingColor.multiplyScalar(1.05 + t * 0.25);
         colors.push(workingColor.r, workingColor.g, workingColor.b);
       }
       geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
@@ -397,10 +397,10 @@ function createTileStructures() {
 
 createTileStructures();
 
-const playerMaterial = new THREE.MeshPhongMaterial({ color: 0xfff3b0, flatShading: true });
-const playerGeometry = new THREE.CapsuleGeometry(3, 6, 6, 12);
+const playerMaterial = new THREE.MeshPhongMaterial({ color: 0xffd7ba, flatShading: true });
+const playerGeometry = new THREE.CapsuleGeometry(0.35, 1.3, 6, 12);
 const player = new THREE.Mesh(playerGeometry, playerMaterial);
-player.position.set(0, 6, 0);
+player.position.set(0, 1, 0);
 playerGeometry.computeBoundingBox();
 scene.add(player);
 updateIsometricCamera(0);
@@ -510,7 +510,7 @@ if (canvas) {
 }
 
 function resetPlayer() {
-  player.position.set(0, 6, 0);
+  player.position.set(0, 1, 0);
   yaw = Math.PI;
 }
 

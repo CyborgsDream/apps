@@ -13,6 +13,27 @@ const resetButton = document.getElementById('resetButton');
 const sprintButton = document.getElementById('sprintButton');
 const sprintStateLabel = document.getElementById('sprintState');
 
+const keyboardState = {
+  forward: false,
+  backward: false,
+  left: false,
+  right: false,
+};
+
+const joystickState = {
+  active: false,
+  pointerId: null,
+  x: 0,
+  y: 0,
+};
+
+const inputState = {
+  forward: false,
+  backward: false,
+  left: false,
+  right: false,
+};
+
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -461,27 +482,6 @@ function clampAngle(angle) {
   const tau = Math.PI * 2;
   return ((angle % tau) + tau) % tau;
 }
-
-const keyboardState = {
-  forward: false,
-  backward: false,
-  left: false,
-  right: false,
-};
-
-const joystickState = {
-  active: false,
-  pointerId: null,
-  x: 0,
-  y: 0,
-};
-
-const inputState = {
-  forward: false,
-  backward: false,
-  left: false,
-  right: false,
-};
 
 function setSprintState(isActive) {
   sprint = Boolean(isActive);

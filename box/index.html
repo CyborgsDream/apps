@@ -25,17 +25,41 @@
 
       <div id="instructionsPanel" class="hud-panel">
         <strong>Controls</strong>
-        <span>World tile size: 64 m × 64 m</span>
-        <span>WASD / Arrows: move & rotate</span>
-        <span>Space: sprint toggle</span>
-        <span>C: switch camera (third / top / iso)</span>
-        <span>R: reset player</span>
+        <span class="desktop-only">World tile size: 64 m × 64 m</span>
+        <span class="desktop-only">WASD / Arrows: move & rotate</span>
+        <span class="desktop-only">Space: sprint toggle</span>
+        <span class="desktop-only">C: switch camera (third / top / iso)</span>
+        <span class="desktop-only">R: reset player</span>
+        <span class="mobile-only">Use the joystick to drive & rotate</span>
+        <span class="mobile-only">Tap Sprint to toggle speed</span>
+        <span class="mobile-only">Camera & Reset buttons are on the right</span>
       </div>
     </div>
 
     <div class="ui-row ui-row-bottom">
       <button id="gyroPermButton" class="hud-button">Enable Motion Control</button>
       <button id="fullscreenButton" class="hud-button">Enter Fullscreen</button>
+    </div>
+  </div>
+
+  <div id="mobileControls" aria-hidden="true">
+    <div class="mobile-controls-row">
+      <div id="moveJoystick" class="joystick" aria-label="Movement joystick">
+        <div class="joystick-ring"></div>
+        <div class="joystick-thumb"></div>
+      </div>
+
+      <div class="mobile-action-stack">
+        <button id="cameraButton" class="mobile-button" type="button">Camera</button>
+        <button id="resetButton" class="mobile-button" type="button">Reset</button>
+      </div>
+    </div>
+
+    <div class="mobile-controls-row mobile-controls-row-bottom">
+      <button id="sprintButton" class="mobile-button mobile-button-wide" type="button">
+        <span class="label">Sprint</span>
+        <span id="sprintState" class="state">Off</span>
+      </button>
     </div>
   </div>
 

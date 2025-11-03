@@ -5,6 +5,13 @@ const fpsCounter = document.getElementById('fpsCounter');
 const resolutionInfo = document.getElementById('resolutionInfo');
 const resolutionSelect = document.getElementById('resolutionSelect');
 const fullscreenButton = document.getElementById('fullscreenButton');
+const mobileControls = document.getElementById('mobileControls');
+const moveJoystick = document.getElementById('moveJoystick');
+const joystickThumb = moveJoystick?.querySelector('.joystick-thumb');
+const cameraButton = document.getElementById('cameraButton');
+const resetButton = document.getElementById('resetButton');
+const sprintButton = document.getElementById('sprintButton');
+const sprintStateLabel = document.getElementById('sprintState');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
@@ -19,6 +26,28 @@ function applyOrientationClass() {
   const isPortrait = window.innerHeight >= window.innerWidth;
   document.body.classList.toggle('portrait', isPortrait);
   document.body.classList.toggle('landscape', !isPortrait);
+}
+
+const coarsePointerQuery = window.matchMedia?.('(pointer: coarse)');
+
+function applyInteractionMode() {
+  if (!document?.body) {
+    return;
+  }
+  const hasTouch = (navigator.maxTouchPoints || 0) > 0 || Boolean(coarsePointerQuery?.matches);
+  document.body.classList.toggle('touch-controls', hasTouch);
+  if (mobileControls) {
+    mobileControls.setAttribute('aria-hidden', hasTouch ? 'false' : 'true');
+  }
+  if (!hasTouch) {
+    resetJoystick();
+  }
+}
+
+if (coarsePointerQuery?.addEventListener) {
+  coarsePointerQuery.addEventListener('change', applyInteractionMode);
+} else if (coarsePointerQuery?.addListener) {
+  coarsePointerQuery.addListener(applyInteractionMode);
 }
 
 function updateResolutionInfo() {
@@ -123,9 +152,13 @@ if (resolutionSelect) {
 }
 
 updateRendererSize();
+applyInteractionMode();
 applyOrientationClass();
 
-window.addEventListener('orientationchange', applyOrientationClass);
+window.addEventListener('orientationchange', () => {
+  applyOrientationClass();
+  applyInteractionMode();
+});
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b1120);
@@ -154,6 +187,19 @@ isometricCamera.up.set(0, 1, 0);
 
 let activeCamera = thirdPersonCamera;
 let cameraMode = 'third';
+
+function updateCameraButtonLabel() {
+  if (!cameraButton) {
+    return;
+  }
+  const label =
+    cameraMode === 'third'
+      ? 'Camera: Chase'
+      : cameraMode === 'top'
+        ? 'Camera: Top'
+        : 'Camera: Iso';
+  cameraButton.textContent = label;
+}
 
 // World scale: 1 unit = 1 meter
 const TILE_SIZE = 64;
@@ -416,12 +462,128 @@ function clampAngle(angle) {
   return ((angle % tau) + tau) % tau;
 }
 
-const input = {
+const keyboardState = {
   forward: false,
   backward: false,
   left: false,
-  right: false
+  right: false,
 };
+
+const joystickState = {
+  active: false,
+  pointerId: null,
+  x: 0,
+  y: 0,
+};
+
+const inputState = {
+  forward: false,
+  backward: false,
+  left: false,
+  right: false,
+};
+
+function setSprintState(isActive) {
+  sprint = Boolean(isActive);
+  if (sprintButton) {
+    sprintButton.classList.toggle('is-active', sprint);
+    sprintButton.setAttribute('aria-pressed', sprint ? 'true' : 'false');
+  }
+  if (sprintStateLabel) {
+    sprintStateLabel.textContent = sprint ? 'On' : 'Off';
+  }
+}
+
+function updateJoystickVisual() {
+  if (!moveJoystick || !joystickThumb) {
+    return;
+  }
+  const maxTravel = Math.max(
+    0,
+    Math.min(moveJoystick.clientWidth, moveJoystick.clientHeight) / 2 - joystickThumb.clientWidth / 2,
+  );
+  const offsetX = joystickState.x * maxTravel;
+  const offsetY = joystickState.y * maxTravel;
+  joystickThumb.style.transform = `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px)`;
+}
+
+function syncInputState() {
+  inputState.forward = keyboardState.forward || (joystickState.active && joystickState.y < -0.25);
+  inputState.backward = keyboardState.backward || (joystickState.active && joystickState.y > 0.25);
+  inputState.left = keyboardState.left || (joystickState.active && joystickState.x < -0.25);
+  inputState.right = keyboardState.right || (joystickState.active && joystickState.x > 0.25);
+}
+
+function resetJoystick() {
+  joystickState.active = false;
+  joystickState.pointerId = null;
+  joystickState.x = 0;
+  joystickState.y = 0;
+  updateJoystickVisual();
+  syncInputState();
+}
+
+function updateJoystickFromEvent(event) {
+  if (!moveJoystick) {
+    return;
+  }
+  const rect = moveJoystick.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const dx = event.clientX - centerX;
+  const dy = event.clientY - centerY;
+  const maxRadius = Math.min(rect.width, rect.height) / 2;
+
+  if (maxRadius <= 0) {
+    joystickState.x = 0;
+    joystickState.y = 0;
+  } else {
+    const distance = Math.min(Math.hypot(dx, dy), maxRadius);
+    const angle = Math.atan2(dy, dx);
+    const clampedX = Math.cos(angle) * distance;
+    const clampedY = Math.sin(angle) * distance;
+    joystickState.x = clampedX / maxRadius;
+    joystickState.y = clampedY / maxRadius;
+  }
+
+  updateJoystickVisual();
+  syncInputState();
+}
+
+function handleJoystickPointerDown(event) {
+  if (!moveJoystick || (joystickState.active && joystickState.pointerId !== event.pointerId)) {
+    return;
+  }
+  joystickState.active = true;
+  joystickState.pointerId = event.pointerId;
+  moveJoystick.setPointerCapture?.(event.pointerId);
+  updateJoystickFromEvent(event);
+  if (event.pointerType === 'touch') {
+    applyInteractionMode();
+    event.preventDefault();
+  }
+}
+
+function handleJoystickPointerMove(event) {
+  if (!joystickState.active || joystickState.pointerId !== event.pointerId) {
+    return;
+  }
+  updateJoystickFromEvent(event);
+  if (event.pointerType === 'touch') {
+    event.preventDefault();
+  }
+}
+
+function handleJoystickPointerUp(event) {
+  if (joystickState.pointerId !== event.pointerId) {
+    return;
+  }
+  moveJoystick?.releasePointerCapture?.(event.pointerId);
+  resetJoystick();
+  if (event.pointerType === 'touch') {
+    event.preventDefault();
+  }
+}
 
 function adjustYaw(delta) {
   yaw = clampAngle(yaw + delta);
@@ -431,22 +593,22 @@ function handleKey(event, isDown) {
   switch (event.code) {
     case 'KeyW':
     case 'ArrowUp':
-      input.forward = isDown;
+      keyboardState.forward = isDown;
       break;
     case 'KeyS':
     case 'ArrowDown':
-      input.backward = isDown;
+      keyboardState.backward = isDown;
       break;
     case 'KeyA':
     case 'ArrowLeft':
-      input.left = isDown;
+      keyboardState.left = isDown;
       break;
     case 'KeyD':
     case 'ArrowRight':
-      input.right = isDown;
+      keyboardState.right = isDown;
       break;
     case 'Space':
-      if (isDown) sprint = !sprint;
+      if (isDown) setSprintState(!sprint);
       break;
     case 'KeyC':
       if (isDown) toggleCamera();
@@ -457,10 +619,34 @@ function handleKey(event, isDown) {
     default:
       break;
   }
+  syncInputState();
 }
 
 document.addEventListener('keydown', (event) => handleKey(event, true));
 document.addEventListener('keyup', (event) => handleKey(event, false));
+
+setSprintState(false);
+resetJoystick();
+updateCameraButtonLabel();
+
+if (moveJoystick) {
+  moveJoystick.addEventListener('pointerdown', handleJoystickPointerDown, { passive: false });
+  moveJoystick.addEventListener('pointermove', handleJoystickPointerMove, { passive: false });
+  moveJoystick.addEventListener('pointerup', handleJoystickPointerUp, { passive: false });
+  moveJoystick.addEventListener('pointercancel', handleJoystickPointerUp, { passive: false });
+}
+
+if (sprintButton) {
+  sprintButton.addEventListener('click', () => setSprintState(!sprint));
+}
+
+if (cameraButton) {
+  cameraButton.addEventListener('click', () => toggleCamera());
+}
+
+if (resetButton) {
+  resetButton.addEventListener('click', () => resetPlayer());
+}
 
 function handlePointerMove(event) {
   if (!pointerDragging || !lastPointerPosition) {
@@ -525,6 +711,7 @@ function toggleCamera() {
     cameraMode = 'third';
     activeCamera = thirdPersonCamera;
   }
+  updateCameraButtonLabel();
 }
 
 function updatePlayer(delta) {
@@ -532,22 +719,22 @@ function updatePlayer(delta) {
   const baseMoveSpeed = 30;
   const moveSpeed = sprint ? baseMoveSpeed * 1.7 : baseMoveSpeed;
 
-  if (input.left && !input.right) {
+  if (inputState.left && !inputState.right) {
     adjustYaw(rotateSpeed * delta);
-  } else if (input.right && !input.left) {
+  } else if (inputState.right && !inputState.left) {
     adjustYaw(-rotateSpeed * delta);
   }
 
   player.rotation.y = yaw + Math.PI / 2; // align capsule front
 
   const direction = new THREE.Vector3();
-  if (input.forward) direction.z -= 1;
-  if (input.backward) direction.z += 1;
+  if (inputState.forward) direction.z -= 1;
+  if (inputState.backward) direction.z += 1;
   direction.normalize();
 
   if (direction.lengthSq() > 0) {
     const moveDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-    const speed = (input.forward ? 1 : -1) * moveSpeed * delta;
+    const speed = (inputState.forward ? 1 : -1) * moveSpeed * delta;
     const displacement = moveDir.multiplyScalar(speed);
     attemptMove(displacement);
   }
@@ -599,6 +786,7 @@ function animate() {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.05);
 
+  syncInputState();
   updatePlayer(delta);
   updateThirdPersonCamera(delta);
   updateTopDownCamera(delta);
@@ -634,4 +822,5 @@ window.addEventListener('resize', () => {
   isometricCamera.bottom = -ISO_FRUSTUM_SIZE;
   isometricCamera.updateProjectionMatrix();
   applyOrientationClass();
+  applyInteractionMode();
 });

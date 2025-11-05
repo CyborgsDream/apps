@@ -172,10 +172,6 @@ if (resolutionSelect) {
   resolutionSelect.addEventListener('change', handleResolutionChange);
 }
 
-updateRendererSize();
-applyInteractionMode();
-applyOrientationClass();
-
 window.addEventListener('orientationchange', () => {
   applyOrientationClass();
   applyInteractionMode();
@@ -628,6 +624,9 @@ document.addEventListener('keyup', (event) => handleKey(event, false));
 setSprintState(false);
 resetJoystick();
 updateCameraButtonLabel();
+updateRendererSize();
+applyInteractionMode();
+applyOrientationClass();
 
 if (moveJoystick) {
   moveJoystick.addEventListener('pointerdown', handleJoystickPointerDown, { passive: false });
